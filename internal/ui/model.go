@@ -194,6 +194,9 @@ type Model struct {
 	themeIndex        int
 	responseTab       int
 	responseSearch    string
+	prevResponseBody  string
+	responseDiff      bool
+	showLargeBody     bool
 	lastPayload       domain.RequestPayload
 
 	methods      []string
@@ -1317,6 +1320,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case domain.ResponseResult:
 		m.loading = false
+		if msg.Err == nil && m.lastResp != nil && m.lastResp.Err == nil {
+			m.prevResponseBody = m.lastResp.Body
+		}
+		m.responseDiff, m.showLargeBody = false, false
 		m.lastResp = &msg
 		m.lastStatus = msg.StatusCode
 		if msg.Headers != nil {
@@ -1345,16 +1352,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.history, _ = repository.LoadHistory(filepath.Join(repository.ConfigDir(), "history.json"))
 			}
-			headerLines := make([]string, 0, len(msg.Headers))
-			for k, v := range msg.Headers {
-				headerLines = append(headerLines, fmt.Sprintf("%s: %s", k, strings.Join(v, ", ")))
-			}
-			content := fmt.Sprintf("// Response Headers\n%s\n\n// Response Body (%d bytes)\n%s",
-				strings.Join(headerLines, "\n"),
-				len(msg.Body),
-				msg.Body,
-			)
-			m.viewport.SetContent(content)
 		}
 		m.viewport.GotoTop()
 		m.refreshResponse()
@@ -1489,6 +1486,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "f3":
 			m.openModal(modalAuth, "")
+			return m, nil
+		case "ctrl+d":
+			if m.prevResponseBody == "" {
+				m.status = "Belum ada response sebelumnya untuk dibandingkan"
+				return m, nil
+			}
+			m.responseDiff = !m.responseDiff
+			m.responseTab = 0
+			m.refreshResponse()
 			return m, nil
 		case "/":
 			if m.focus == FocusResponse {
@@ -1727,6 +1733,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case FocusResponse:
+			if msg.String() == "enter" && len(m.responseBody) > largeResponseBytes && !m.showLargeBody {
+				m.showLargeBody = true
+				m.refreshResponse()
+				return m, nil
+			}
 			if msg.String() == "left" || msg.String() == "h" {
 				m.responseTab = (m.responseTab + 2) % 3
 				m.refreshResponse()
@@ -1790,7 +1801,7 @@ func (m Model) View() string {
 	mainBody := lipgloss.JoinHorizontal(lipgloss.Top, sidebarPanel, " ", leftPanel, " ", rightPanel)
 	header := styles.Title.Render("⚡ MARTIS TUI - Ultra-Light REST Client")
 	footer := styles.Help.Render(
-		"[Ctrl+S] Send [Ctrl+E] Save [Ctrl+F] File [Ctrl+H] History [Ctrl+G] Env [Ctrl+I] cURL in [Ctrl+X] cURL out [Ctrl+B] Benchmark [Ctrl+O] Save response",
+		"[Ctrl+S] Send [Ctrl+E] Save [Ctrl+F] File [Ctrl+H] History [Ctrl+G] Env [Ctrl+I] cURL in [Ctrl+X] cURL out [Ctrl+B] Benchmark [Ctrl+O] Save response [Ctrl+D] Diff",
 	)
 	if m.activeEnvName != "" {
 		footer += "  env=" + m.activeEnvName
@@ -2008,11 +2019,19 @@ func (m Model) renderResponseViewer(width int) string {
 	)
 }
 
+// largeResponseBytes is the body size above which the viewer asks before rendering.
+const largeResponseBytes = 1 << 20
+
 func (m *Model) refreshResponse() {
 	if !m.viewportReady {
 		return
 	}
 	content := m.responseBody
+	if m.responseTab == 0 && m.responseDiff {
+		content = requestutil.Diff(m.prevResponseBody, m.responseBody)
+	} else if m.responseTab == 0 && m.responseSearch == "" && len(content) > largeResponseBytes && !m.showLargeBody {
+		content = fmt.Sprintf("⚠️  Response besar (%.1f MB) tidak langsung ditampilkan agar TUI tetap ringan.\n\n[Enter] Tampilkan tetap\n[/]     Filter teks atau json.path\n[Ctrl+O] Simpan ke file", float64(len(content))/(1<<20))
+	}
 	if m.responseTab == 1 {
 		content = formatResponseHeaders(m.responseHeaders)
 	}
@@ -2027,8 +2046,9 @@ func (m *Model) refreshResponse() {
 		}
 	} else if m.responseSearch != "" {
 		var matches []string
+		term := strings.ToLower(m.responseSearch)
 		for _, line := range strings.Split(content, "\n") {
-			if strings.Contains(strings.ToLower(line), strings.ToLower(m.responseSearch)) {
+			if strings.Contains(strings.ToLower(line), term) {
 				matches = append(matches, line)
 			}
 		}
