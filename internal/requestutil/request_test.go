@@ -37,3 +37,14 @@ func TestAssertStatusAndJSONPath(t *testing.T) {
 		t.Fatalf("expected two failures, got %v", failed)
 	}
 }
+
+func TestCaptureJSONValues(t *testing.T) {
+	response := domain.ResponseResult{StatusCode: 200, Body: `{"auth":{"token":"abc","ttl":60}}`}
+	got, failed := Capture(response, "Status == 200\nset token = json.auth.token\nset ttl = json.auth.ttl\nset gone = json.nope\nset 1bad = json.auth")
+	if got["token"] != "abc" || got["ttl"] != "60" || len(got) != 2 || len(failed) != 2 {
+		t.Fatalf("unexpected capture %v, failures %v", got, failed)
+	}
+	if failed := Assert(response, "set token = json.auth.token"); len(failed) != 0 {
+		t.Fatalf("set lines must not fail assertions: %v", failed)
+	}
+}

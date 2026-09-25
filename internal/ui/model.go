@@ -1324,8 +1324,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.SetContent(fmt.Sprintf("❌ Request Error:\n\n%v\n\nDuration: %v", msg.Err, msg.Duration))
 			m.status = msg.Err.Error()
 		} else {
-			if failures := requestutil.Assert(msg, m.lastPayload.Assertions); len(failures) > 0 {
+			captured, captureFailures := requestutil.Capture(msg, m.lastPayload.Assertions)
+			// ponytail: captured values live in memory only, lost on restart or env switch.
+			for k, v := range captured {
+				m.activeEnv[k] = v
+			}
+			if failures := append(requestutil.Assert(msg, m.lastPayload.Assertions), captureFailures...); len(failures) > 0 {
 				m.status = "Assertion failed: " + strings.Join(failures, ", ")
+			} else if len(captured) > 0 {
+				m.status = fmt.Sprintf("HTTP %d, captured %d variable(s)", msg.StatusCode, len(captured))
 			} else {
 				m.status = fmt.Sprintf("HTTP %d", msg.StatusCode)
 			}
@@ -1937,7 +1944,7 @@ func (m Model) renderRequestBuilder(width int) string {
 			label = "F3 preset; edit authentication JSON (none, bearer, basic, api-key, oauth2)"
 		}
 		if m.tab == TabAssertions {
-			label = "Assertions (Status == 200 / json.id != nil)"
+			label = "Assertions (Status == 200 / json.id != nil / set token = json.access_token)"
 		}
 		configContent = lipgloss.JoinVertical(lipgloss.Left, styles.Label.Render(label), m.configEditor.View())
 	}

@@ -11,6 +11,9 @@ import (
 )
 
 var variable = regexp.MustCompile(`\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}`)
+var name = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func ValidName(s string) bool { return name.MatchString(s) }
 
 func Load(path string) (map[string]string, error) {
 	f, err := os.Open(path)
@@ -29,7 +32,7 @@ func Load(path string) (map[string]string, error) {
 		key, value, ok := strings.Cut(s, "=")
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
-		if !ok || !regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`).MatchString(key) {
+		if !ok || !ValidName(key) {
 			return nil, fmt.Errorf("%s:%d: invalid environment assignment", filepath.Base(path), line)
 		}
 		if len(value) >= 2 && (value[0] == '\'' || value[0] == '"') {
