@@ -59,7 +59,7 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 ### 9. Package Manager Distribution
 - [x] Homebrew tap formula untuk macOS (`brew install wahyuakbarwibowo/tap/martis`).
 - [x] Arch Linux AUR package (`PKGBUILD`).
-- [x] Scoop manifest untuk Windows (dibangkitkan GoReleaser saat rilis).
+- [ ] Scoop manifest untuk Windows (ditunda, fokus ke sistem Unix).
 - [x] Chocolatey package template untuk Windows.
 
 ### 10. External Collection Import

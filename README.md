@@ -55,10 +55,6 @@ Release binaries are also distributed through package managers; Go is not requir
 brew tap wahyuakbarwibowo/tap
 brew install martis
 
-# Scoop (Windows PowerShell)
-scoop bucket add martis https://github.com/wahyuakbarwibowo/scoop-bucket
-scoop install martis
-
 # Arch Linux (AUR)
 yay -S martis
 ```
