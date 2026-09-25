@@ -39,6 +39,7 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 
 ### 6. cURL Integration
 - [x] **Import from cURL**: Fitur paste perintah `curl -X POST ...` dan otomatis mengisi URL, headers, dan body.
+- [x] **Form-data file picker**: Pilih file lokal dengan mouse atau `Ctrl+F`, termasuk cURL `-F field=@file;type=mime`.
 - [x] **Export to cURL**: Tombol/shortcut untuk mengekspor konfigurasi request saat ini menjadi perintah cURL terminal.
 
 ---
@@ -47,7 +48,7 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 
 ### 7. Custom Themes & UI Polish
 - [x] Pilihan color scheme (Dracula, Catppuccin, Nord, Tokyo Night, Monokai).
-- [x] Full mouse support (klik untuk fokus elemen atau ganti tab).
+- [x] Full mouse support (klik untuk fokus elemen/tab, pilih file, serta scroll sidebar dan response viewer).
 
 ### 8. Testing & Assertion Scripts
 - [x] Status code & response assertion sederhana (e.g. `Status == 200`, `json.id != nil`).

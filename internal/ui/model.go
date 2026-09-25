@@ -105,6 +105,7 @@ const (
 	modalAuth
 	modalCollections
 	modalFolder
+	modalFilePicker
 )
 
 type treeRowType int
@@ -142,6 +143,8 @@ type Model struct {
 	modalInput        textarea.Model
 	modalError        string
 	modalIndex        int
+	fileCandidates    []string
+	filePickerDir     string
 	history           []domain.HistoryEntry
 	envFiles          []string
 	activeEnv         map[string]string
@@ -746,6 +749,32 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 		m.status = "Authentication preset: " + m.auth.Mode
 		return nil
 	}
+	if m.modal == modalFilePicker {
+		count := len(m.fileCandidates)
+		switch msg.String() {
+		case "up":
+			if count > 0 {
+				m.modalIndex = (m.modalIndex - 1 + count) % count
+			}
+			return nil
+		case "down":
+			if count > 0 {
+				m.modalIndex = (m.modalIndex + 1) % count
+			}
+			return nil
+		case "enter":
+			if count > 0 {
+				m.formFilePath.SetValue(filepath.Join(m.filePickerDir, m.fileCandidates[m.modalIndex]))
+				m.tab = TabBodyForm
+				m.focus = FocusConfig
+				m.formFocusIndex = 1
+				m.modal = modalNone
+				m.updateFocusStates()
+			}
+			return nil
+		}
+		return nil
+	}
 	if msg.String() == "ctrl+enter" || (msg.String() == "enter" && (m.modal == modalSave || m.modal == modalFolder)) {
 		text := strings.TrimSpace(m.modalInput.Value())
 		switch m.modal {
@@ -862,6 +891,32 @@ func (m *Model) importCurl(raw string) error {
 	return nil
 }
 
+func (m *Model) openFilePicker() {
+	dir, err := os.Getwd()
+	if err != nil {
+		m.status = "file picker: " + err.Error()
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		m.status = "file picker: " + err.Error()
+		return
+	}
+	m.fileCandidates = m.fileCandidates[:0]
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		m.fileCandidates = append(m.fileCandidates, entry.Name())
+	}
+	sort.Strings(m.fileCandidates)
+	m.filePickerDir = dir
+	m.modalIndex = 0
+	m.modalError = ""
+	m.modal = modalFilePicker
+	m.updateFocusStates()
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -903,7 +958,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.saveNameInput.Width = 35
 
 	case tea.MouseMsg:
+		if msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown) {
+			step := -1
+			if msg.Button == tea.MouseButtonWheelDown {
+				step = 1
+			}
+			if msg.X < 28 && len(m.sidebarRows) > 0 {
+				m.selectedTreeIndex += step
+				if m.selectedTreeIndex < 0 {
+					m.selectedTreeIndex = 0
+				}
+				if m.selectedTreeIndex >= len(m.sidebarRows) {
+					m.selectedTreeIndex = len(m.sidebarRows) - 1
+				}
+				m.focus = FocusSidebar
+			} else if msg.X > 30+(m.width-34)/2 && m.viewportReady {
+				if step < 0 {
+					m.viewport.LineUp(3)
+				} else {
+					m.viewport.LineDown(3)
+				}
+				m.focus = FocusResponse
+			}
+			m.updateFocusStates()
+			return m, nil
+		}
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			if m.modal == modalFilePicker {
+				if len(m.fileCandidates) > 0 {
+					// The picker is centered; the first item is close to the modal top.
+					row := msg.Y - (m.height-len(m.fileCandidates))/2
+					if row >= 0 && row < len(m.fileCandidates) {
+						m.formFilePath.SetValue(filepath.Join(m.filePickerDir, m.fileCandidates[row]))
+						m.modal = modalNone
+						m.tab = TabBodyForm
+						m.focus = FocusConfig
+						m.formFocusIndex = 1
+						m.updateFocusStates()
+					}
+				}
+				return m, nil
+			}
 			sidebarWidth := 28
 			if msg.X < sidebarWidth && msg.Y >= 4 {
 				// View has a title, panel border, tree heading and help line above
@@ -976,6 +1071,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if msg.X >= 30 && msg.X < 30+requestWidth && msg.Y >= 5 {
 				m.focus = FocusConfig
+				if m.tab == TabBodyForm {
+					if msg.Y <= 7 {
+						m.formFocusIndex = 0
+					} else if msg.Y <= 11 {
+						m.formFocusIndex = 1
+					}
+				}
 				m.updateFocusStates()
 				return m, nil
 			}
@@ -1092,6 +1194,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.openModal(modalCurlImport, "")
+			return m, nil
+		case "ctrl+f":
+			if m.tab == TabBodyForm {
+				m.openFilePicker()
+			}
 			return m, nil
 		case "ctrl+x":
 			text := curlparser.Export(m.currentPayload())
@@ -1393,7 +1500,7 @@ func (m Model) View() string {
 	mainBody := lipgloss.JoinHorizontal(lipgloss.Top, sidebarPanel, " ", leftPanel, " ", rightPanel)
 	header := styles.Title.Render("⚡ MARTIS TUI - Ultra-Light REST Client")
 	footer := styles.Help.Render(
-		"[Ctrl+S] Send [Ctrl+E] Save [Ctrl+H] History [Ctrl+G] Env [Ctrl+I] cURL in [Ctrl+X] cURL out [Ctrl+B] Benchmark [Ctrl+O] Save response",
+		"[Ctrl+S] Send [Ctrl+E] Save [Ctrl+F] File [Ctrl+H] History [Ctrl+G] Env [Ctrl+I] cURL in [Ctrl+X] cURL out [Ctrl+B] Benchmark [Ctrl+O] Save response",
 	)
 	if m.activeEnvName != "" {
 		footer += "  env=" + m.activeEnvName
@@ -1556,7 +1663,7 @@ func (m Model) renderRequestBuilder(width int) string {
 			styles.Label.Render("Local File Path:"),
 			lipgloss.JoinHorizontal(lipgloss.Left, fPrefix, m.formFilePath.View()),
 			"",
-			lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("Tip: Enter local file path to test multipart upload."),
+			lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("Tip: type a path or press Ctrl+F to choose a local file."),
 		)
 	case TabQuery, TabAuth, TabAssertions:
 		label := "Query Parameters (key=value per row)"
@@ -1706,6 +1813,19 @@ func (m Model) renderModal(background string) string {
 	case modalFolder:
 		title = "New collection folder"
 		body = m.modalInput.View() + "\nEnter to create"
+	case modalFilePicker:
+		title = "Choose form-data file"
+		if len(m.fileCandidates) == 0 {
+			body = "No files found in " + m.filePickerDir
+		} else {
+			for i, name := range m.fileCandidates {
+				if i == m.modalIndex {
+					name = "▶ " + name
+				}
+				body += name + "\n"
+			}
+			body += "Enter/click to use file"
+		}
 	case modalAuth:
 		title = "Authentication preset"
 		for i, name := range []string{"None", "Bearer Token", "Basic Auth", "API Key in Header", "API Key in Query", "OAuth 2.0 Client Credentials"} {

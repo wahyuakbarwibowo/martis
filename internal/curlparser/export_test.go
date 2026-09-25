@@ -30,3 +30,13 @@ func TestExportMultipartFile(t *testing.T) {
 		t.Fatalf("unexpected multipart parse: %#v", got)
 	}
 }
+
+func TestParseMultipartFileAttributes(t *testing.T) {
+	got, err := Parse(`curl -F 'avatar=@./photo.png;type=image/png' https://api.test/upload`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.FormKey != "avatar" || got.FormPath != "./photo.png" || got.Method != "POST" {
+		t.Fatalf("unexpected multipart parse: %#v", got)
+	}
+}

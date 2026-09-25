@@ -95,8 +95,17 @@ func Parse(raw string) (ParsedCurl, error) {
 		case "-F", "--form":
 			i++
 			key, value, ok := strings.Cut(tokens[i], "=@")
-			if !ok || key == "" || value == "" {
+			if !ok || strings.TrimSpace(key) == "" || value == "" {
 				return ParsedCurl{}, fmt.Errorf("only file multipart fields are supported")
+			}
+			// cURL permits attributes after the path, for example
+			// `-F 'avatar=@photo.png;type=image/png'`.
+			if path, _, found := strings.Cut(value, ";"); found {
+				value = path
+			}
+			value = strings.TrimSpace(value)
+			if value == "" {
+				return ParsedCurl{}, fmt.Errorf("multipart file path is empty")
 			}
 			if result.FormKey != "" {
 				return ParsedCurl{}, fmt.Errorf("only one multipart file is supported")
