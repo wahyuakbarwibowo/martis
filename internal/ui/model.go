@@ -1047,6 +1047,9 @@ func (m *Model) applyTheme() {
 	styles.ActiveTab = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Background(color).Padding(0, 1)
 }
 
+// ImportCurl fills the request editor from a cURL command before the TUI starts.
+func (m *Model) ImportCurl(raw string) error { return m.importCurl(raw) }
+
 func (m *Model) importCurl(raw string) error {
 	parsed, err := curlparser.Parse(raw)
 	if err != nil {

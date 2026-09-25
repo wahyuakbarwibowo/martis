@@ -105,6 +105,8 @@ func HandleCLIArgs(version string) bool {
 		fmt.Printf("Martis TUI - Ultra-Light REST Client (%s)\n\n", version)
 		fmt.Println("Penggunaan:")
 		fmt.Println("  martis             Buka Terminal User Interface (dengan Mouse Click Tree View)")
+		fmt.Println("  martis <url>       Buka TUI dengan URL tersebut")
+		fmt.Println("  martis curl ...    Buka TUI dengan request dari perintah cURL")
 		fmt.Println("  martis collections Tampilkan daftar request di collection")
 		fmt.Println("  martis import <file> Impor Postman v2 atau OpenAPI 3")
 		fmt.Println("  martis run [--env <nama>] <folder>  Jalankan semua request di folder (exit 1 jika ada yang gagal)")
