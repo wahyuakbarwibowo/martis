@@ -58,6 +58,16 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 
 ---
 
+## 🪟 Aplikasi Desktop (preview)
+
+Selain TUI, Martis punya aplikasi desktop dengan window native. Tampilannya memakai webview bawaan sistem (tanpa Electron, tanpa Node), jadi binary sekitar 9 MB dan memakai collection serta environment yang sama di `~/martis`.
+
+```bash
+make desktop-run   # build ./martis-desktop lalu buka window-nya
+```
+
+Butuh CGO: Xcode Command Line Tools di macOS, atau `libgtk-3-dev` + `libwebkit2gtk-4.0-dev` di Linux. Shortcut: `⌘↵` kirim, `⌘S` simpan, `⌘D` diff, `⌘F` filter, `⌘N` request baru.
+
 ## ⌨️ Keyboard Shortcuts
 
 | Shortcut | Aksi |
