@@ -101,3 +101,14 @@ func TestFormEditorSupportsMultipleFieldsAndFiles(t *testing.T) {
 		t.Fatalf("unexpected form payload: %#v", p)
 	}
 }
+
+func TestSidebarDeletesRequest(t *testing.T) {
+	col := &domain.Collection{Folders: []domain.Folder{{ID: "f", Name: "Requests", IsExpanded: true, Items: []domain.CollectionItem{{ID: "i", Name: "Get", Method: "GET", URL: "https://example.test"}}}}}
+	m := NewModel(&testCollectionRepo{collection: col}, testHTTPClient{})
+	m.selectedTreeIndex = 1
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m = updated.(Model)
+	if len(m.collection.Folders[0].Items) != 0 {
+		t.Fatal("sidebar delete should remove selected request")
+	}
+}

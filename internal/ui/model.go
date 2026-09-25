@@ -1544,6 +1544,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.modalIndex = row.folderIndex
 					}
 				}
+			case "d", "backspace":
+				if m.selectedTreeIndex < len(m.sidebarRows) && m.collection != nil {
+					row := m.sidebarRows[m.selectedTreeIndex]
+					folder := &m.collection.Folders[row.folderIndex]
+					if row.rowType == rowFolder {
+						m.collection.Folders = append(m.collection.Folders[:row.folderIndex], m.collection.Folders[row.folderIndex+1:]...)
+						m.status = "Deleted folder"
+					} else if row.itemIndex < len(folder.Items) {
+						folder.Items = append(folder.Items[:row.itemIndex], folder.Items[row.itemIndex+1:]...)
+						m.status = "Deleted request"
+					}
+					if err := m.repo.Save(m.collection); err != nil {
+						m.status = "save collection failed: " + err.Error()
+					}
+					m.rebuildSidebarRows()
+				}
+			case "y":
+				if m.selectedTreeIndex < len(m.sidebarRows) && m.collection != nil {
+					row := m.sidebarRows[m.selectedTreeIndex]
+					if row.rowType == rowItem && row.itemIndex < len(m.collection.Folders[row.folderIndex].Items) {
+						item := m.collection.Folders[row.folderIndex].Items[row.itemIndex]
+						item.ID = fmt.Sprintf("item-%d", time.Now().UnixNano())
+						item.Name += " (copy)"
+						m.collection.Folders[row.folderIndex].Items = append(m.collection.Folders[row.folderIndex].Items, item)
+						if err := m.repo.Save(m.collection); err != nil {
+							m.status = "save collection failed: " + err.Error()
+						} else {
+							m.status = "Duplicated request"
+						}
+						m.rebuildSidebarRows()
+					}
+				}
 			case "up", "k":
 				if m.selectedTreeIndex > 0 {
 					m.selectedTreeIndex--
