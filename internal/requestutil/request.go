@@ -108,28 +108,61 @@ func Assert(r domain.ResponseResult, script string) []string {
 				failures = append(failures, line)
 			}
 		} else if strings.HasPrefix(line, "json.") && strings.HasSuffix(line, " != nil") {
-			var value any
-			if json.Unmarshal([]byte(r.Body), &value) != nil {
-				failures = append(failures, line)
-				continue
-			}
-			path := strings.TrimSuffix(strings.TrimPrefix(line, "json."), " != nil")
-			for _, key := range strings.Split(path, ".") {
-				object, ok := value.(map[string]any)
-				if !ok {
-					value = nil
-					break
-				}
-				value = object[key]
-			}
-			if value == nil {
+			if jsonPath(r.Body, strings.TrimSuffix(line, " != nil")) == nil {
 				failures = append(failures, line)
 			}
+		} else if strings.HasPrefix(line, "set ") {
+			// Handled by Capture.
 		} else {
 			failures = append(failures, "unsupported assertion: "+line)
 		}
 	}
 	return failures
+}
+
+// jsonPath resolves "json.a.b" against a JSON body; nil when missing.
+func jsonPath(body, path string) any {
+	var value any
+	if json.Unmarshal([]byte(body), &value) != nil {
+		return nil
+	}
+	for _, key := range strings.Split(strings.TrimPrefix(path, "json."), ".") {
+		object, ok := value.(map[string]any)
+		if !ok {
+			return nil
+		}
+		value = object[key]
+	}
+	return value
+}
+
+// Capture reads "set name = json.path" lines and returns the captured values.
+func Capture(r domain.ResponseResult, script string) (map[string]string, []string) {
+	values := map[string]string{}
+	var failures []string
+	for _, line := range strings.Split(script, "\n") {
+		line = strings.TrimSpace(line)
+		rest, ok := strings.CutPrefix(line, "set ")
+		if !ok {
+			continue
+		}
+		name, path, ok := strings.Cut(rest, "=")
+		name, path = strings.TrimSpace(name), strings.TrimSpace(path)
+		if !ok || !strings.HasPrefix(path, "json.") || !environment.ValidName(name) {
+			failures = append(failures, "invalid capture: "+line)
+			continue
+		}
+		switch v := jsonPath(r.Body, path).(type) {
+		case nil:
+			failures = append(failures, line)
+		case string:
+			values[name] = v
+		default:
+			b, _ := json.Marshal(v)
+			values[name] = string(b)
+		}
+	}
+	return values, failures
 }
 
 type BenchmarkResult struct {
