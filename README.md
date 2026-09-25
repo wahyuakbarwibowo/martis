@@ -1,5 +1,15 @@
 <div align="center">
 
+```text
+               .---.
+              /     \
+             | () () |   "3,000 worlds, and not a single
+              \  -  /     worthy API client... until now."
+               /`---'\
+              / /| |\ \          ⚡ MARTIS ⚡
+             (_/ | | \_)
+```
+
 # ⚡ Martis
 
 **Ultra-lightweight, blazing-fast Terminal User Interface (TUI) REST client.**  
@@ -16,6 +26,7 @@
 
 ## 🌟 Highlights
 
+- ⚔️ **Ashura King of REST Clients**: Menaklukkan ribuan request endpoint dengan kecepatan instan.
 - 🏎️ **Ultra-Fast & Zero Lag**: Memory footprint minimal (< 20MB RAM) dengan waktu startup instan.
 - 🖥️ **Split-Screen Responsive**: Request Builder di panel kiri dan Response Viewer di panel kanan.
 - ⌨️ **Keyboard First**: Navigasi intuitif menggunakan tombol `Tab`, `Shift+Tab`, dan shortcut tanpa perlu mouse.
