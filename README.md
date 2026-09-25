@@ -28,45 +28,73 @@
 
 ---
 
-## 🚀 Quick Install
+## 🚀 Instalasi
 
-### macOS / Linux (via Make)
+Martis punya dua aplikasi yang berbagi data yang sama (`~/martis`):
+
+- **`martis`**: TUI di terminal, jalan juga lewat SSH.
+- **`martis-desktop`**: aplikasi desktop dengan window sendiri, memakai webview bawaan sistem (tanpa Electron atau Node, binary ±9 MB).
+
+### Install via Shell Script (disarankan)
+
+```bash
+# TUI saja
+curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | bash
+
+# TUI + aplikasi desktop
+curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | MARTIS_DESKTOP=1 bash
+```
+
+Skrip mengunduh binary rilis terbaru untuk macOS/Linux (amd64/arm64), memverifikasi checksum, lalu memasangnya ke `/usr/local/bin` (atau `~/.local/bin`). Tidak butuh Go. Atur `VERSION=v0.5.0` untuk versi tertentu atau `INSTALL_DIR=...` untuk lokasi lain.
+
+Aplikasi desktop di Linux butuh WebKitGTK: `sudo apt install libwebkit2gtk-4.1-0` (Debian/Ubuntu) atau `sudo dnf install webkit2gtk4.1` (Fedora).
+
+### Dari Source (via Make)
+
 ```bash
 git clone https://github.com/wahyuakbarwibowo/martis.git
 cd martis
-make install
-```
-Setelah terpasang, cukup jalankan:
-```bash
-martis
+make install        # pasang TUI ke /usr/local/bin
+make desktop        # build ./martis-desktop (butuh CGO)
 ```
 
-### Install via Shell Script
-```bash
-curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | bash
-```
+Build desktop butuh Xcode Command Line Tools di macOS, atau `libgtk-3-dev` + `libwebkit2gtk-4.1-dev` di Linux (tambahkan tag `webkit2_41` bila perlu).
 
-Skrip mengunduh binary rilis terbaru untuk macOS/Linux (amd64/arm64), memverifikasi checksum, lalu memasangnya ke `/usr/local/bin` (atau `~/.local/bin`). Tidak butuh Go. Atur `VERSION=v0.4.0` untuk versi tertentu atau `INSTALL_DIR=...` untuk lokasi lain.
+### Via Go Toolchain (TUI)
 
-### Via Go Toolchain
 ```bash
 go install github.com/wahyuakbarwibowo/martis@latest
 ```
 
 ### Pre-built Binary
-Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/wahyuakbarwibowo/martis/releases).
+
+Unduh `martis_*` (TUI) atau `martis-desktop_*` (desktop) dari halaman [GitHub Releases](https://github.com/wahyuakbarwibowo/martis/releases).
 
 ---
 
-## 🪟 Aplikasi Desktop (preview)
+## ▶️ Cara Membuka
 
-Selain TUI, Martis punya aplikasi desktop dengan window native. Tampilannya memakai webview bawaan sistem (tanpa Electron, tanpa Node), jadi binary sekitar 9 MB dan memakai collection serta environment yang sama di `~/martis`.
+### TUI
 
 ```bash
-make desktop-run   # build ./martis-desktop lalu buka window-nya
+martis                                   # buka TUI
+martis https://api.example.com/users     # buka TUI dengan URL ini
+martis curl -H 'Accept: application/json' https://api.example.com   # dari perintah cURL
+martis run --env prod Auth               # jalankan folder "Auth" tanpa UI (untuk CI)
 ```
 
-Butuh CGO: Xcode Command Line Tools di macOS, atau `libgtk-3-dev` + `libwebkit2gtk-4.0-dev` di Linux. Shortcut: `⌘↵` kirim, `⌘S` simpan, `⌘D` diff, `⌘F` filter, `⌘N` request baru.
+Keluar dengan `q` atau `Ctrl+C`. Semua shortcut ada di bagian Keyboard Shortcuts di bawah.
+
+### Aplikasi Desktop
+
+```bash
+martis-desktop      # buka window desktop
+make desktop-run    # dari source: build lalu buka
+```
+
+Di macOS, `martis-desktop` bisa dijalankan dari Terminal atau Spotlight setelah terpasang di PATH. Shortcut desktop: `⌘↵` kirim, `⌘S` simpan, `⌘D` diff dengan response sebelumnya, `⌘F` filter (`json.path` atau teks), `⌘N` request baru. Di Linux/Windows gunakan `Ctrl` sebagai pengganti `⌘`.
+
+---
 
 ## ⌨️ Keyboard Shortcuts
 

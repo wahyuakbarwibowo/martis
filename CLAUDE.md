@@ -6,7 +6,7 @@ See `AGENTS.md` for project layout, coding style, testing conventions, and commi
 
 ## Commands
 
-- `make run`: run the TUI. `make build`: build `./martis`; version is injected via `-ldflags -X main.version`.
+- `make run`: run the TUI. `make build`: build `./martis`; version is injected via `-ldflags -X main.version`. `make desktop-run`: build and open the desktop app.
 - `make test`: run `go test -v -race ./...`. For a single test: `go test ./internal/repository -run TestName -v`.
 - `make fmt && make vet`: run both before committing.
 
@@ -19,7 +19,8 @@ See `AGENTS.md` for project layout, coding style, testing conventions, and commi
 - `internal/repository/history.go` provides `ConfigDir()` (`~/martis`; `LegacyConfigDir()` is the old `~/.config/martis`) and a shared `WriteJSON` helper. Use them for any new persisted file.
 - `internal/importer.File` converts Postman or OpenAPI JSON into a `domain.Collection`; `martis import` appends its folders to the saved collections.
 - `internal/curlparser` handles cURL import (`parser.go`) and export (`export.go`).
-- `cmd/martis/` is empty. The real entry point is the root `main.go`.
+- `cmd/martis/` is empty. The TUI entry point is the root `main.go`.
+- `cmd/martis-desktop/` is a separate Wails desktop binary: `app.go` binds Go methods that call `internal/` packages, and `frontend/` is plain HTML/CSS/JS embedded with `go:embed` (no Node). It needs CGO and `-tags desktop,production`; use `make desktop`. The TUI must stay buildable with `CGO_ENABLED=0`, so never import Wails outside this directory.
 
 ## Notes
 
