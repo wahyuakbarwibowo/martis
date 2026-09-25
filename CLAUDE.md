@@ -20,7 +20,7 @@ See `AGENTS.md` for project layout, coding style, testing conventions, and commi
 - `internal/importer.File` converts Postman or OpenAPI JSON into a `domain.Collection`; `martis import` appends its folders to the saved collections.
 - `internal/curlparser` handles cURL import (`parser.go`) and export (`export.go`).
 - `cmd/martis/` is empty. The TUI entry point is the root `main.go`.
-- `cmd/martis-desktop/` is a separate Wails desktop binary: `app.go` binds Go methods that call `internal/` packages, and `frontend/` is plain HTML/CSS/JS embedded with `go:embed` (no Node). It needs CGO and `-tags desktop,production`; use `make desktop`. The TUI must stay buildable with `CGO_ENABLED=0`, so never import Wails outside this directory.
+- `cmd/martis-desktop/` is a separate Wails desktop binary: `app.go` binds Go methods that call `internal/` packages, and `frontend/` is plain HTML/CSS/JS embedded with `go:embed` (no Node). It needs CGO and `-tags desktop,production`; use `make desktop`. `scripts/package-macos.sh` / `package-linux.sh` wrap the binary into `Martis.app` + `.dmg` or a `.deb` (release CI and `make desktop-app` call them); the app icon source is `cmd/martis-desktop/icon.png`. The TUI must stay buildable with `CGO_ENABLED=0`, so never import Wails outside this directory.
 
 ## Notes
 

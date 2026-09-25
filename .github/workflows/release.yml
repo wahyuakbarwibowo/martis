@@ -76,7 +76,14 @@ jobs:
             tags="$tags,webkit2_41"
           fi
           go build -tags "$tags" -ldflags "-s -w -X main.version=$version" -o martis-desktop ./cmd/martis-desktop
-          archive="martis-desktop_${version}_${GOOS}_${GOARCH}.tar.gz"
-          tar -czf "$archive" martis-desktop LICENSE README.md
-          if command -v sha256sum >/dev/null; then sha256sum "$archive" > "$archive.sha256"; else shasum -a 256 "$archive" > "$archive.sha256"; fi
-          gh release upload "$GITHUB_REF_NAME" "$archive" "$archive.sha256" --clobber
+          mkdir -p out
+          if [ "$GOOS" = darwin ]; then
+            scripts/package-macos.sh martis-desktop "$version" "$GOARCH" out
+          else
+            scripts/package-linux.sh martis-desktop "$version" "$GOARCH" out
+          fi
+          cd out
+          for f in *; do
+            if command -v sha256sum >/dev/null; then sha256sum "$f" > "$f.sha256"; else shasum -a 256 "$f" > "$f.sha256"; fi
+          done
+          gh release upload "$GITHUB_REF_NAME" * --clobber

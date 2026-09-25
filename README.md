@@ -30,51 +30,71 @@
 
 ## 🚀 Instalasi
 
-Martis punya dua aplikasi yang berbagi data yang sama (`~/martis`):
+Martis hadir dalam dua bentuk yang berbagi data yang sama (`~/martis`):
 
-- **`martis`**: TUI di terminal, jalan juga lewat SSH.
-- **`martis-desktop`**: aplikasi desktop dengan window sendiri, memakai webview bawaan sistem (tanpa Electron atau Node, binary ±9 MB).
+- **Martis Desktop**: aplikasi dengan window sendiri, memakai webview bawaan sistem (tanpa Electron atau Node). Unduhan ±4 MB.
+- **`martis` (TUI + CLI)**: untuk terminal, SSH, dan CI (`martis run`).
 
-### Install via Shell Script (disarankan)
+### macOS
+
+**Pakai .dmg:** unduh `Martis_<versi>_arm64.dmg` (Apple Silicon) atau `Martis_<versi>_amd64.dmg` (Intel) dari [Releases](https://github.com/wahyuakbarwibowo/martis/releases/latest), buka, lalu seret **Martis** ke **Applications**. Karena aplikasi belum dinotarisasi Apple, saat pertama kali dibuka klik kanan **Martis → Open**, lalu pilih **Open**.
+
+**Pakai skrip (tanpa peringatan Gatekeeper):**
 
 ```bash
-# TUI saja
-curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | bash
-
-# TUI + aplikasi desktop
 curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | MARTIS_DESKTOP=1 bash
 ```
 
-Skrip mengunduh binary rilis terbaru untuk macOS/Linux (amd64/arm64), memverifikasi checksum, lalu memasangnya ke `/usr/local/bin` (atau `~/.local/bin`). Tidak butuh Go. Atur `VERSION=v0.5.0` untuk versi tertentu atau `INSTALL_DIR=...` untuk lokasi lain.
+Skrip memasang `Martis.app` ke `~/Applications` (muncul di Spotlight, Launchpad, dan bisa disematkan ke Dock) serta `martis` dan `martis-desktop` ke PATH.
 
-Aplikasi desktop di Linux butuh WebKitGTK: `sudo apt install libwebkit2gtk-4.1-0` (Debian/Ubuntu) atau `sudo dnf install webkit2gtk4.1` (Fedora).
+### Linux
 
-### Dari Source (via Make)
+**Debian/Ubuntu (.deb):** unduh `martis-desktop_<versi>_amd64.deb` atau `_arm64.deb` dari [Releases](https://github.com/wahyuakbarwibowo/martis/releases/latest), lalu:
+
+```bash
+sudo apt install ./martis-desktop_*.deb
+```
+
+**Distro lain (skrip):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | MARTIS_DESKTOP=1 bash
+```
+
+Skrip menambahkan Martis ke menu aplikasi. Aplikasi desktop butuh WebKitGTK 4.1: `sudo apt install libwebkit2gtk-4.1-0` (Debian/Ubuntu) atau `sudo dnf install webkit2gtk4.1` (Fedora).
+
+### TUI saja
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | bash
+```
+
+Tersedia untuk macOS, Linux, dan (via [Releases](https://github.com/wahyuakbarwibowo/martis/releases/latest)) Windows. Skrip memverifikasi checksum dan memasang ke `/usr/local/bin` (atau `~/.local/bin`). Atur `VERSION=v0.6.0` untuk versi tertentu atau `INSTALL_DIR=...` untuk lokasi lain. Alternatif: `go install github.com/wahyuakbarwibowo/martis@latest`.
+
+### Dari Source
 
 ```bash
 git clone https://github.com/wahyuakbarwibowo/martis.git
 cd martis
 make install        # pasang TUI ke /usr/local/bin
-make desktop        # build ./martis-desktop (butuh CGO)
+make desktop-run    # build lalu buka aplikasi desktop (butuh CGO)
+make desktop-app    # kemas Martis.app + .dmg (macOS) atau .deb (Linux) ke dist/
 ```
 
-Build desktop butuh Xcode Command Line Tools di macOS, atau `libgtk-3-dev` + `libwebkit2gtk-4.1-dev` di Linux (tambahkan tag `webkit2_41` bila perlu).
-
-### Via Go Toolchain (TUI)
-
-```bash
-go install github.com/wahyuakbarwibowo/martis@latest
-```
-
-### Pre-built Binary
-
-Unduh `martis_*` (TUI) atau `martis-desktop_*` (desktop) dari halaman [GitHub Releases](https://github.com/wahyuakbarwibowo/martis/releases).
+Build desktop butuh Xcode Command Line Tools di macOS, atau `libgtk-3-dev` + `libwebkit2gtk-4.1-dev` di Linux (tambahkan tag `webkit2_41`).
 
 ---
 
 ## ▶️ Cara Membuka
 
-### TUI
+### Martis Desktop
+
+- **macOS:** tekan `⌘ Space`, ketik **Martis**, Enter. Atau buka dari Launchpad/Applications, atau jalankan `martis-desktop` di terminal.
+- **Linux:** cari **Martis** di menu aplikasi, atau jalankan `martis-desktop`.
+
+Shortcut: `⌘↵` kirim, `⌘S` simpan, `⌘D` diff dengan response sebelumnya, `⌘F` filter (`json.path` atau teks), `⌘N` request baru. Di Linux gunakan `Ctrl` sebagai pengganti `⌘`.
+
+### TUI dan CLI
 
 ```bash
 martis                                   # buka TUI
@@ -83,16 +103,7 @@ martis curl -H 'Accept: application/json' https://api.example.com   # dari perin
 martis run --env prod Auth               # jalankan folder "Auth" tanpa UI (untuk CI)
 ```
 
-Keluar dengan `q` atau `Ctrl+C`. Semua shortcut ada di bagian Keyboard Shortcuts di bawah.
-
-### Aplikasi Desktop
-
-```bash
-martis-desktop      # buka window desktop
-make desktop-run    # dari source: build lalu buka
-```
-
-Di macOS, `martis-desktop` bisa dijalankan dari Terminal atau Spotlight setelah terpasang di PATH. Shortcut desktop: `⌘↵` kirim, `⌘S` simpan, `⌘D` diff dengan response sebelumnya, `⌘F` filter (`json.path` atau teks), `⌘N` request baru. Di Linux/Windows gunakan `Ctrl` sebagai pengganti `⌘`.
+Keluar dengan `q` atau `Ctrl+C`. Semua shortcut TUI ada di bagian Keyboard Shortcuts di bawah.
 
 ---
 
