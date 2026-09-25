@@ -56,10 +56,6 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 - [x] Status code & response assertion sederhana (e.g. `Status == 200`, `json.id != nil`).
 - [x] Performance benchmark runner (mengirim N request berturut-turut untuk mengukur rata-rata latency).
 
-### 9. Package Manager Distribution
-- [x] Arch Linux AUR package (`PKGBUILD`).
-- [x] Chocolatey package template untuk Windows.
-
 ### 10. External Collection Import
 - [x] Import Postman v2 dan OpenAPI 3 melalui `martis import <file>`.
 - [x] Import environment Postman ke `~/martis/environments/*.env`.
