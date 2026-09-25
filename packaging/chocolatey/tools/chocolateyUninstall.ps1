@@ -1,0 +1,1 @@
+UnInstall-BinFile -Name 'martis'
