@@ -956,6 +956,9 @@ func (m *Model) importCurl(raw string) error {
 		m.formFields = append(m.formFields, domain.KeyValue{Key: key, Value: value})
 	}
 	for key, value := range parsed.FormFiles {
+		if key == parsed.FormKey && value == parsed.FormPath {
+			continue // legacy FormKey/FormPath carries the first file
+		}
 		m.formFiles = append(m.formFiles, domain.KeyValue{Key: key, Value: value})
 	}
 	sort.Slice(m.formFields, func(i, j int) bool { return m.formFields[i].Key < m.formFields[j].Key })
