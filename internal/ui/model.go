@@ -108,6 +108,7 @@ const (
 	modalCollections
 	modalFolder
 	modalFilePicker
+	modalRename
 )
 
 type treeRowType int
@@ -173,6 +174,9 @@ type Model struct {
 	modalInput        textarea.Model
 	modalError        string
 	modalIndex        int
+	renameFolderIndex int
+	renameItemIndex   int
+	renameIsFolder    bool
 	fileCandidates    []string
 	filePickerDir     string
 	history           []domain.HistoryEntry
@@ -834,7 +838,7 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if msg.String() == "ctrl+enter" || (msg.String() == "enter" && (m.modal == modalSave || m.modal == modalFolder)) {
+	if msg.String() == "ctrl+enter" || (msg.String() == "enter" && (m.modal == modalSave || m.modal == modalFolder || m.modal == modalRename)) {
 		text := strings.TrimSpace(m.modalInput.Value())
 		switch m.modal {
 		case modalSave:
@@ -857,6 +861,30 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 			m.rebuildSidebarRows()
 			m.selectedTreeIndex = len(m.sidebarRows) - 1
 			m.status = "Created folder " + name
+		case modalRename:
+			name := strings.TrimSpace(text)
+			if name == "" {
+				m.modalError = "Name is required"
+				return nil
+			}
+			if m.collection == nil || m.renameFolderIndex < 0 || m.renameFolderIndex >= len(m.collection.Folders) {
+				m.modalError = "Invalid collection target"
+				return nil
+			}
+			if m.renameIsFolder {
+				m.collection.Folders[m.renameFolderIndex].Name = name
+			} else if m.renameItemIndex >= 0 && m.renameItemIndex < len(m.collection.Folders[m.renameFolderIndex].Items) {
+				m.collection.Folders[m.renameFolderIndex].Items[m.renameItemIndex].Name = name
+			} else {
+				m.modalError = "Invalid request target"
+				return nil
+			}
+			if err := m.repo.Save(m.collection); err != nil {
+				m.modalError = err.Error()
+				return nil
+			}
+			m.rebuildSidebarRows()
+			m.status = "Renamed collection item"
 		case modalCurlImport:
 			if err := m.importCurl(text); err != nil {
 				m.modalError = err.Error()
@@ -1385,6 +1413,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.focus {
 		case FocusSidebar:
 			switch msg.String() {
+			case "r":
+				if m.selectedTreeIndex < len(m.sidebarRows) {
+					row := m.sidebarRows[m.selectedTreeIndex]
+					m.renameFolderIndex, m.renameItemIndex = row.folderIndex, row.itemIndex
+					m.renameIsFolder = row.rowType == rowFolder
+					name := row.name
+					m.openModal(modalRename, name)
+				}
 			case "up", "k":
 				if m.selectedTreeIndex > 0 {
 					m.selectedTreeIndex--
@@ -1912,6 +1948,9 @@ func (m Model) renderModal(background string) string {
 	case modalFolder:
 		title = "New collection folder"
 		body = m.modalInput.View() + "\nEnter to create"
+	case modalRename:
+		title = "Rename collection item"
+		body = m.modalInput.View() + "\nEnter to rename"
 	case modalFilePicker:
 		title = "Choose form-data file"
 		if len(m.fileCandidates) == 0 {

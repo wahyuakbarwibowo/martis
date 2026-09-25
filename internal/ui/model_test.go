@@ -73,3 +73,21 @@ func TestFormFilePickerLoadsSelectedFile(t *testing.T) {
 		t.Fatalf("picker should load selected path: modal=%v path=%q tab=%v", m.modal, m.formFilePath.Value(), m.tab)
 	}
 }
+
+func TestRenameCollectionRequest(t *testing.T) {
+	col := &domain.Collection{Folders: []domain.Folder{{ID: "f", Name: "Requests", IsExpanded: true, Items: []domain.CollectionItem{{ID: "i", Name: "Old", Method: "GET", URL: "https://example.test"}}}}}
+	m := NewModel(&testCollectionRepo{collection: col}, testHTTPClient{})
+	m.selectedTreeIndex = 1
+	m.sidebarRows = []treeRow{{rowType: rowFolder, folderIndex: 0}, {rowType: rowItem, folderIndex: 0, itemIndex: 0}}
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	m = updated.(Model)
+	if m.modal != modalRename {
+		t.Fatal("r should open rename modal")
+	}
+	m.modalInput.SetValue("New")
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(Model)
+	if m.collection.Folders[0].Items[0].Name != "New" {
+		t.Fatalf("request was not renamed: %#v", m.collection.Folders[0].Items[0])
+	}
+}

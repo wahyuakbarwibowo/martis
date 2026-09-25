@@ -97,6 +97,7 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 | `Ctrl+S` | Kirim HTTP Request |
 | `Enter` | Kirim request (saat di URL bar / Send button) atau Konfirmasi modal |
 | `d` / `Backspace` | Hapus request terpilih di sidebar atau modal Collection |
+| `r` | Rename folder atau request terpilih di sidebar |
 | `←` / `→` | Ganti HTTP Method (*GET*, *POST*, *PUT*, *DELETE*, *PATCH*, *HEAD*) |
 | `↑` / `↓` / `j` / `k` | Scroll response viewer (saat fokus di viewport) atau navigasi Collection |
 | `q` / `Ctrl+C` | Keluar dari aplikasi |
