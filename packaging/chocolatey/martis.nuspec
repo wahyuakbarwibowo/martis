@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>martis</id>
-    <version>0.1.0</version>
+    <version>0.2.1</version>
     <title>Martis</title>
     <authors>Wahyu Akbar Wibowo</authors>
     <owners>wahyuakbarwibowo</owners>

@@ -46,6 +46,25 @@ martis
 curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | bash
 ```
 
+### Install via Package Manager
+
+Release binaries are also distributed through package managers; Go is not required.
+
+```bash
+# Homebrew (macOS/Linux)
+brew tap wahyuakbarwibowo/tap
+brew install martis
+
+# Scoop (Windows PowerShell)
+scoop bucket add martis https://github.com/wahyuakbarwibowo/scoop-bucket
+scoop install martis
+
+# Arch Linux (AUR)
+yay -S martis
+```
+
+For Windows Chocolatey, install the published package with `choco install martis -y`.
+
 ### Via Go Toolchain
 ```bash
 go install github.com/wahyuakbarwibowo/martis@latest

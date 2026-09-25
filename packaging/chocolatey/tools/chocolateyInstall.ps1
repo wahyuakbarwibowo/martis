@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$version = '0.1.0'
+$version = '0.2.1'
 $asset = "martis_${version}_windows_amd64.zip"
 $base = "https://github.com/wahyuakbarwibowo/martis/releases/download/v${version}"
 $checksumPath = Join-Path $env:TEMP 'martis-checksums.txt'
