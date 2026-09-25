@@ -7,8 +7,8 @@ import (
 
 func TestCollectionStorage(t *testing.T) {
 	col := loadCollections()
-	if len(col.Items) == 0 {
-		t.Fatal("expected default collection to have items")
+	if len(col.Folders) == 0 {
+		t.Fatal("expected default collection to have folders")
 	}
 
 	testItem := CollectionItem{
@@ -18,7 +18,7 @@ func TestCollectionStorage(t *testing.T) {
 		URL:    "https://api.example.com",
 	}
 
-	col.Items = append(col.Items, testItem)
+	col.Folders[0].Items = append(col.Folders[0].Items, testItem)
 	err := saveCollections(col)
 	if err != nil {
 		t.Fatalf("failed to save collection: %v", err)
@@ -26,10 +26,12 @@ func TestCollectionStorage(t *testing.T) {
 
 	loaded := loadCollections()
 	found := false
-	for _, it := range loaded.Items {
-		if it.ID == "test-item" {
-			found = true
-			break
+	for _, f := range loaded.Folders {
+		for _, it := range f.Items {
+			if it.ID == "test-item" {
+				found = true
+				break
+			}
 		}
 	}
 
@@ -39,12 +41,12 @@ func TestCollectionStorage(t *testing.T) {
 
 	// Cleanup test item
 	var cleaned []CollectionItem
-	for _, it := range loaded.Items {
+	for _, it := range loaded.Folders[0].Items {
 		if it.ID != "test-item" {
 			cleaned = append(cleaned, it)
 		}
 	}
-	loaded.Items = cleaned
+	loaded.Folders[0].Items = cleaned
 	_ = saveCollections(loaded)
 }
 
@@ -53,5 +55,5 @@ func TestCollectionPath(t *testing.T) {
 	if path == "" {
 		t.Error("expected valid collection file path")
 	}
-	_ = os.Remove(path) // safe test
+	_ = os.Remove(path)
 }

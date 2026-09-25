@@ -24,16 +24,16 @@ import (
 type focusArea int
 
 const (
-	focusMethod focusArea = iota
+	focusSidebar focusArea = iota
+	focusMethod
 	focusURL
 	focusTabs
 	focusConfig
 	focusSend
 	focusResponse
-	focusCollection // Modal / Sidebar collection list
 )
 
-const totalMainFocusAreas = 6
+const totalFocusAreas = 7
 
 type configTab int
 
@@ -44,6 +44,23 @@ const (
 )
 
 const totalTabs = 3
+
+// --- Tree Node Row for Flattened Sidebar Display ---
+type treeRowType int
+
+const (
+	rowFolder treeRowType = iota
+	rowItem
+)
+
+type treeRow struct {
+	rowType     treeRowType
+	folderIndex int
+	itemIndex   int
+	name        string
+	method      string
+	isExpanded  bool
+}
 
 // --- Response Message ---
 type httpResponseMsg struct {
@@ -66,12 +83,12 @@ type model struct {
 	focus focusArea
 	tab   configTab
 
-	// Collection Management
-	collection          Collection
-	selectedColIndex    int
-	showCollectionModal bool
-	saveModalOpen       bool
-	saveNameInput       textinput.Model
+	// Collection Tree & Sidebar
+	collection        Collection
+	selectedTreeIndex int
+	sidebarRows       []treeRow
+	saveModalOpen     bool
+	saveNameInput     textinput.Model
 
 	// Request inputs
 	methods      []string
@@ -187,6 +204,15 @@ var (
 			Foreground(subtleColor).
 			MarginTop(1)
 
+	folderStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFA500"))
+
+	activeRowStyle = lipgloss.NewStyle().
+			Bold(true).
+			Background(lipgloss.Color("#44475A")).
+			Foreground(lipgloss.Color("#FFFFFF"))
+
 	modalBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.DoubleBorder()).
 			BorderForeground(primaryColor).
@@ -201,7 +227,7 @@ func initialModel() model {
 	urlIn.Placeholder = "https://httpbin.org/anything"
 	urlIn.SetValue("https://httpbin.org/anything")
 	urlIn.CharLimit = 500
-	urlIn.Width = 40
+	urlIn.Width = 35
 
 	// Header Inputs
 	hKey := textinput.New()
@@ -235,7 +261,7 @@ func initialModel() model {
 
 	// Save Modal Name input
 	sName := textinput.New()
-	sName.Placeholder = "Request Name (e.g. Get User List)"
+	sName.Placeholder = "Request Name (e.g. Get User Profile)"
 	sName.CharLimit = 100
 
 	// Spinner
@@ -247,7 +273,7 @@ func initialModel() model {
 	col := loadCollections()
 
 	m := model{
-		focus:         focusURL,
+		focus:         focusSidebar,
 		tab:           tabBodyRaw,
 		methods:       []string{"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"},
 		methodIndex:   1, // POST default
@@ -263,6 +289,7 @@ func initialModel() model {
 		collection:    col,
 	}
 
+	m.rebuildSidebarRows()
 	m.updateFocusStates()
 	return m
 }
@@ -274,9 +301,37 @@ func (m model) Init() tea.Cmd {
 	)
 }
 
+// Membangun baris tampilan tree view berdasarkan folder dan status IsExpanded
+func (m *model) rebuildSidebarRows() {
+	var rows []treeRow
+	for fIdx, f := range m.collection.Folders {
+		rows = append(rows, treeRow{
+			rowType:     rowFolder,
+			folderIndex: fIdx,
+			name:        f.Name,
+			isExpanded:  f.IsExpanded,
+		})
+
+		if f.IsExpanded {
+			for iIdx, it := range f.Items {
+				rows = append(rows, treeRow{
+					rowType:     rowItem,
+					folderIndex: fIdx,
+					itemIndex:   iIdx,
+					name:        it.Name,
+					method:      it.Method,
+				})
+			}
+		}
+	}
+	m.sidebarRows = rows
+	if m.selectedTreeIndex >= len(m.sidebarRows) && len(m.sidebarRows) > 0 {
+		m.selectedTreeIndex = len(m.sidebarRows) - 1
+	}
+}
+
 // --- Focus Management Helper ---
 func (m *model) updateFocusStates() {
-	// Blur all first
 	m.urlInput.Blur()
 	m.headerKey.Blur()
 	m.headerVal.Blur()
@@ -320,7 +375,6 @@ func (m *model) updateFocusStates() {
 
 // Muat item collection ke form saat ini
 func (m *model) loadCollectionItem(item CollectionItem) {
-	// Set Method
 	for idx, meth := range m.methods {
 		if strings.EqualFold(meth, item.Method) {
 			m.methodIndex = idx
@@ -343,10 +397,19 @@ func (m *model) loadCollectionItem(item CollectionItem) {
 	m.updateFocusStates()
 }
 
-// Simpan request aktif ke collection
+// Toggle folder expand / collapse
+func (m *model) toggleFolder(fIdx int) {
+	if fIdx >= 0 && fIdx < len(m.collection.Folders) {
+		m.collection.Folders[fIdx].IsExpanded = !m.collection.Folders[fIdx].IsExpanded
+		_ = saveCollections(m.collection)
+		m.rebuildSidebarRows()
+	}
+}
+
+// Simpan request aktif ke folder yang dipilih atau folder pertama
 func (m *model) saveCurrentToCollection(name string) {
 	if strings.TrimSpace(name) == "" {
-		name = fmt.Sprintf("%s %s", m.methods[m.methodIndex], m.urlInput.Value())
+		name = fmt.Sprintf("%s %s", m.methods[m.methodIndex], filepath.Base(m.urlInput.Value()))
 	}
 
 	bodyType := "raw"
@@ -368,8 +431,23 @@ func (m *model) saveCurrentToCollection(name string) {
 		FormPath:   m.formFilePath.Value(),
 	}
 
-	m.collection.Items = append(m.collection.Items, newItem)
+	if len(m.collection.Folders) == 0 {
+		m.collection.Folders = append(m.collection.Folders, Folder{
+			ID:         "folder-default",
+			Name:       "My Requests",
+			IsExpanded: true,
+		})
+	}
+
+	// Masukkan ke folder saat ini jika sedang memilih folder
+	targetFolder := 0
+	if m.selectedTreeIndex < len(m.sidebarRows) {
+		targetFolder = m.sidebarRows[m.selectedTreeIndex].folderIndex
+	}
+	m.collection.Folders[targetFolder].Items = append(m.collection.Folders[targetFolder].Items, newItem)
+	m.collection.Folders[targetFolder].IsExpanded = true
 	_ = saveCollections(m.collection)
+	m.rebuildSidebarRows()
 }
 
 // --- HTTP Request Command (Asynchronous) ---
@@ -386,7 +464,6 @@ func (m model) sendHTTPRequest() tea.Cmd {
 	rawBody := m.jsonBody.Value()
 	tab := m.tab
 
-	// Headers
 	customHKey := strings.TrimSpace(m.headerKey.Value())
 	customHVal := strings.TrimSpace(m.headerVal.Value())
 	authVal := strings.TrimSpace(m.headerAuth.Value())
@@ -404,7 +481,6 @@ func (m model) sendHTTPRequest() tea.Cmd {
 			if tab == tabBodyRaw {
 				reqBody = bytes.NewBufferString(rawBody)
 			} else if tab == tabBodyForm && filePathVal != "" {
-				// Form-Data / File upload mode
 				bodyBuf := &bytes.Buffer{}
 				writer := multipart.NewWriter(bodyBuf)
 
@@ -446,7 +522,6 @@ func (m model) sendHTTPRequest() tea.Cmd {
 			}
 		}
 
-		// Apply Headers
 		if contentType != "" {
 			req.Header.Set("Content-Type", contentType)
 		} else if customHKey != "" && customHVal != "" {
@@ -485,7 +560,6 @@ func (m model) sendHTTPRequest() tea.Cmd {
 			}
 		}
 
-		// Pretty print JSON if applicable
 		bodyStr := string(respBytes)
 		var prettyJSON bytes.Buffer
 		if json.Indent(&prettyJSON, respBytes, "", "  ") == nil {
@@ -512,7 +586,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		halfWidth := (m.width / 2) - 4
+		// Perhitungan Layout Tiga Kolom (Sidebar: 28, Request: Sisa/2, Response: Sisa/2)
+		sidebarWidth := 28
+		remWidth := m.width - sidebarWidth - 6
+		halfWidth := remWidth / 2
 		if halfWidth < 30 {
 			halfWidth = 30
 		}
@@ -523,7 +600,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if !m.viewportReady {
 			m.viewport = viewport.New(halfWidth, vpHeight)
-			m.viewport.SetContent("Waiting for request... Press [Ctrl+S] or Send button to execute.")
+			m.viewport.SetContent("Waiting for request... Click an item or press [Ctrl+S] to send.")
 			m.viewportReady = true
 		} else {
 			m.viewport.Width = halfWidth
@@ -539,6 +616,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.formKey.Width = halfWidth - 6
 		m.formFilePath.Width = halfWidth - 6
 		m.saveNameInput.Width = 35
+
+	case tea.MouseMsg:
+		// Menangani Mouse Click pada Sidebar Folder & Request Items!
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			sidebarWidth := 28
+			// Jika mouse diklik di dalam area sidebar kiri
+			if msg.X <= sidebarWidth+2 && msg.Y >= 2 {
+				clickedRow := msg.Y - 2 // Offset dari header bar
+				if clickedRow >= 0 && clickedRow < len(m.sidebarRows) {
+					m.selectedTreeIndex = clickedRow
+					m.focus = focusSidebar
+					row := m.sidebarRows[clickedRow]
+
+					if row.rowType == rowFolder {
+						// Klik folder: toggle expand/collapse
+						m.toggleFolder(row.folderIndex)
+					} else {
+						// Klik item: muat request langsung ke form!
+						f := m.collection.Folders[row.folderIndex]
+						if row.itemIndex < len(f.Items) {
+							m.loadCollectionItem(f.Items[row.itemIndex])
+						}
+					}
+					m.updateFocusStates()
+					return m, nil
+				}
+			}
+		}
 
 	case spinner.TickMsg:
 		if m.loading {
@@ -586,44 +691,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, sCmd
 		}
 
-		// Modal Collection List handling
-		if m.showCollectionModal {
-			switch msg.String() {
-			case "esc", "c", "C":
-				m.showCollectionModal = false
-				m.updateFocusStates()
-				return m, nil
-			case "up", "k":
-				if m.selectedColIndex > 0 {
-					m.selectedColIndex--
-				}
-				return m, nil
-			case "down", "j":
-				if m.selectedColIndex < len(m.collection.Items)-1 {
-					m.selectedColIndex++
-				}
-				return m, nil
-			case "enter":
-				if len(m.collection.Items) > 0 {
-					m.loadCollectionItem(m.collection.Items[m.selectedColIndex])
-				}
-				m.showCollectionModal = false
-				m.updateFocusStates()
-				return m, nil
-			case "d", "backspace": // Hapus item collection
-				if len(m.collection.Items) > 0 {
-					idx := m.selectedColIndex
-					m.collection.Items = append(m.collection.Items[:idx], m.collection.Items[idx+1:]...)
-					if m.selectedColIndex >= len(m.collection.Items) && m.selectedColIndex > 0 {
-						m.selectedColIndex--
-					}
-					_ = saveCollections(m.collection)
-				}
-				return m, nil
-			}
-			return m, nil
-		}
-
 		// Global Keybindings
 		switch msg.String() {
 		case "ctrl+c":
@@ -637,10 +704,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Batch(cmds...)
 
-		case "ctrl+p": // Open Collection Picker
-			m.showCollectionModal = true
-			return m, nil
-
 		case "ctrl+e": // Save request to collection
 			m.saveModalOpen = true
 			m.saveNameInput.SetValue(fmt.Sprintf("%s %s", m.methods[m.methodIndex], filepath.Base(m.urlInput.Value())))
@@ -648,12 +711,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "tab":
-			m.focus = (m.focus + 1) % totalMainFocusAreas
+			m.focus = (m.focus + 1) % totalFocusAreas
 			m.updateFocusStates()
 			return m, nil
 
 		case "shift+tab":
-			m.focus = (m.focus - 1 + totalMainFocusAreas) % totalMainFocusAreas
+			m.focus = (m.focus - 1 + totalFocusAreas) % totalFocusAreas
 			m.updateFocusStates()
 			return m, nil
 
@@ -665,17 +728,50 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle key per active focus area
 		switch m.focus {
+		case focusSidebar:
+			switch msg.String() {
+			case "up", "k":
+				if m.selectedTreeIndex > 0 {
+					m.selectedTreeIndex--
+				}
+			case "down", "j":
+				if m.selectedTreeIndex < len(m.sidebarRows)-1 {
+					m.selectedTreeIndex++
+				}
+			case "enter", " ":
+				if m.selectedTreeIndex < len(m.sidebarRows) {
+					row := m.sidebarRows[m.selectedTreeIndex]
+					if row.rowType == rowFolder {
+						m.toggleFolder(row.folderIndex)
+					} else {
+						f := m.collection.Folders[row.folderIndex]
+						if row.itemIndex < len(f.Items) {
+							m.loadCollectionItem(f.Items[row.itemIndex])
+							m.focus = focusURL
+							m.updateFocusStates()
+						}
+					}
+				}
+			case "right", "l": // Pindah fokus ke Request Builder
+				m.focus = focusMethod
+				m.updateFocusStates()
+			}
+			return m, nil
+
 		case focusMethod:
 			switch msg.String() {
-			case "left", "h", "up", "k":
+			case "left", "h":
 				if m.methodIndex > 0 {
 					m.methodIndex--
+				} else {
+					m.focus = focusSidebar
+					m.updateFocusStates()
 				}
-			case "right", "l", "down", "j":
+			case "right", "l":
 				if m.methodIndex < len(m.methods)-1 {
 					m.methodIndex++
 				}
-			case "enter":
+			case "enter", "down", "j":
 				m.focus = focusURL
 				m.updateFocusStates()
 			}
@@ -804,7 +900,9 @@ func (m model) View() string {
 		return "Starting Martis..."
 	}
 
-	halfWidth := (m.width / 2) - 4
+	sidebarWidth := 28
+	remWidth := m.width - sidebarWidth - 6
+	halfWidth := remWidth / 2
 	if halfWidth < 30 {
 		halfWidth = 30
 	}
@@ -813,15 +911,23 @@ func (m model) View() string {
 		panelHeight = 10
 	}
 
-	// 1. Left Side: Request Builder
+	// 1. Leftmost: Clickable Tree View Sidebar
+	sidebarContent := m.renderSidebar(sidebarWidth)
+	sidebarBorder := panelStyle.Width(sidebarWidth).Height(panelHeight)
+	if m.focus == focusSidebar {
+		sidebarBorder = activePanelStyle.Width(sidebarWidth).Height(panelHeight)
+	}
+	sidebarPanel := sidebarBorder.Render(sidebarContent)
+
+	// 2. Middle: Request Builder
 	leftContent := m.renderRequestBuilder(halfWidth)
 	leftBorder := panelStyle.Width(halfWidth).Height(panelHeight)
-	if m.focus != focusResponse {
+	if m.focus != focusResponse && m.focus != focusSidebar {
 		leftBorder = activePanelStyle.Width(halfWidth).Height(panelHeight)
 	}
 	leftPanel := leftBorder.Render(leftContent)
 
-	// 2. Right Side: Response Viewer
+	// 3. Rightmost: Response Viewer
 	rightContent := m.renderResponseViewer(halfWidth)
 	rightBorder := panelStyle.Width(halfWidth).Height(panelHeight)
 	if m.focus == focusResponse {
@@ -829,23 +935,20 @@ func (m model) View() string {
 	}
 	rightPanel := rightBorder.Render(rightContent)
 
-	// Combine Split View
-	mainBody := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
+	// Combine 3-Column Split View
+	mainBody := lipgloss.JoinHorizontal(lipgloss.Top, sidebarPanel, " ", leftPanel, " ", rightPanel)
 
 	// Header banner
 	header := titleStyle.Render("⚡ MARTIS TUI - Ultra-Light REST Client")
 
 	// Footer Help
 	footer := helpStyle.Render(
-		"[Tab] Focus • [Ctrl+P] Collections • [Ctrl+E] Save Request • [Ctrl+S] Send • [q] Quit",
+		"[Click/Enter] Toggle Folder/Load Request • [Tab] Focus • [Ctrl+E] Save Request • [Ctrl+S] Send • [q] Quit",
 	)
 
 	rendered := lipgloss.JoinVertical(lipgloss.Left, header, mainBody, footer)
 
-	// Render Modals if active
-	if m.showCollectionModal {
-		return m.renderCollectionModal(rendered)
-	}
+	// Render Save Modal if active
 	if m.saveModalOpen {
 		return m.renderSaveModal(rendered)
 	}
@@ -853,32 +956,49 @@ func (m model) View() string {
 	return rendered
 }
 
-// Render Collection Picker Modal
-func (m model) renderCollectionModal(background string) string {
-	var items []string
-	items = append(items, lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00E676")).Render("📁 Collections / Saved Requests"))
-	items = append(items, lipgloss.NewStyle().Foreground(subtleColor).Render("Use [↑/↓/j/k] to navigate, [Enter] to load, [d] to delete, [Esc] to close\n"))
+// Render Clickable Sidebar Tree
+func (m model) renderSidebar(width int) string {
+	var lines []string
+	lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render("📂 COLLECTIONS"))
+	lines = append(lines, lipgloss.NewStyle().Foreground(subtleColor).Render("Click or ↑/↓/Enter\n"))
 
-	if len(m.collection.Items) == 0 {
-		items = append(items, lipgloss.NewStyle().Foreground(subtleColor).Render("No saved requests yet. Press [Ctrl+E] to save current request."))
-	} else {
-		for i, it := range m.collection.Items {
-			prefix := "  "
-			cursor := lipgloss.NewStyle().Foreground(primaryColor)
-			methodBadge := lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("[%-6s]", it.Method))
+	for i, row := range m.sidebarRows {
+		prefix := "  "
+		if i == m.selectedTreeIndex && m.focus == focusSidebar {
+			prefix = "▶ "
+		}
 
-			if i == m.selectedColIndex {
-				prefix = "▶ "
-				cursor = cursor.Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Background(primaryColor)
+		if row.rowType == rowFolder {
+			icon := "📁 ▶"
+			if row.isExpanded {
+				icon = "📂 ▼"
 			}
+			folderText := fmt.Sprintf("%s%s %s", prefix, icon, row.name)
+			if i == m.selectedTreeIndex && m.focus == focusSidebar {
+				lines = append(lines, activeRowStyle.Render(folderText))
+			} else {
+				lines = append(lines, folderStyle.Render(folderText))
+			}
+		} else {
+			// Item Request di dalam Folder
+			methodColor := lipgloss.Color("#00D7D7")
+			if row.method == "POST" {
+				methodColor = lipgloss.Color("#00E676")
+			} else if row.method == "DELETE" {
+				methodColor = lipgloss.Color("#FF5252")
+			}
+			badge := lipgloss.NewStyle().Foreground(methodColor).Bold(true).Render(row.method)
+			itemText := fmt.Sprintf("%s  • %s %s", prefix, badge, row.name)
 
-			line := fmt.Sprintf("%s %s %-25s %s", prefix, methodBadge, it.Name, lipgloss.NewStyle().Foreground(subtleColor).Render(it.URL))
-			items = append(items, cursor.Render(line))
+			if i == m.selectedTreeIndex && m.focus == focusSidebar {
+				lines = append(lines, activeRowStyle.Render(itemText))
+			} else {
+				lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("#D8DEE9")).Render(itemText))
+			}
 		}
 	}
 
-	modalContent := modalBoxStyle.Render(lipgloss.JoinVertical(lipgloss.Left, items...))
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modalContent)
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
 // Render Save Request Modal
@@ -887,7 +1007,7 @@ func (m model) renderSaveModal(background string) string {
 		lipgloss.Left,
 		lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render("💾 Save Request to Collection"),
 		"",
-		labelStyle.Render("Enter a name for this request:"),
+		labelStyle.Render("Enter request name:"),
 		m.saveNameInput.View(),
 		"",
 		lipgloss.NewStyle().Foreground(subtleColor).Render("[Enter] Save • [Esc] Cancel"),
@@ -915,7 +1035,7 @@ func (m model) renderRequestBuilder(width int) string {
 	}
 	methodRow := lipgloss.JoinHorizontal(lipgloss.Center, methodBadges...)
 
-	// Send Button & Collection Quick Action
+	// Send Button & Save
 	sendBtn := sendBtnStyle.Render(" Send [Ctrl+S] ")
 	if m.focus == focusSend {
 		sendBtn = activeSendBtnStyle.Render("▶ Send [Ctrl+S] ")
@@ -926,7 +1046,7 @@ func (m model) renderRequestBuilder(width int) string {
 		)
 	}
 
-	saveBtn := lipgloss.NewStyle().Foreground(subtleColor).Render("[Ctrl+P] Load • [Ctrl+E] Save")
+	saveBtn := lipgloss.NewStyle().Foreground(subtleColor).Render("[Ctrl+E] Save")
 	topBar := lipgloss.JoinHorizontal(lipgloss.Center, methodRow, "  ", sendBtn, "  ", saveBtn)
 	sections = append(sections, topBar)
 
@@ -938,7 +1058,7 @@ func (m model) renderRequestBuilder(width int) string {
 	sections = append(sections, lipgloss.JoinHorizontal(lipgloss.Left, urlPrompt, m.urlInput.View()))
 
 	// Tab Selector Row
-	tabLabels := []string{"1. Headers", "2. Body (JSON)", "3. Form-Data / Upload"}
+	tabLabels := []string{"1. Headers", "2. Body (JSON)", "3. Form-Data"}
 	var renderedTabs []string
 	for i, label := range tabLabels {
 		if configTab(i) == m.tab {
@@ -978,7 +1098,7 @@ func (m model) renderRequestBuilder(width int) string {
 			labelStyle.Render("Authorization Header:"),
 			lipgloss.JoinHorizontal(lipgloss.Left, aPrefix, m.headerAuth.View()),
 			"",
-			lipgloss.NewStyle().Foreground(subtleColor).Render("Tip: Use Up/Down arrows to move between header fields."),
+			lipgloss.NewStyle().Foreground(subtleColor).Render("Tip: Up/Down arrows to move between header fields."),
 		)
 
 	case tabBodyRaw:
@@ -1011,7 +1131,7 @@ func (m model) renderRequestBuilder(width int) string {
 			labelStyle.Render("Local File Path:"),
 			lipgloss.JoinHorizontal(lipgloss.Left, fPrefix, m.formFilePath.View()),
 			"",
-			lipgloss.NewStyle().Foreground(subtleColor).Render("Tip: Enter local file path to test multipart/form-data upload."),
+			lipgloss.NewStyle().Foreground(subtleColor).Render("Tip: Enter local file path to test multipart upload."),
 		)
 	}
 
@@ -1021,7 +1141,6 @@ func (m model) renderRequestBuilder(width int) string {
 }
 
 func (m model) renderResponseViewer(width int) string {
-	// Status & Metrics Bar
 	var statusBadge string
 	var metaStats string
 
@@ -1065,7 +1184,6 @@ func (m model) renderResponseViewer(width int) string {
 	)
 }
 
-// Format bytes into readable format
 func formatBytes(b int) string {
 	const unit = 1024
 	if b < unit {
@@ -1079,7 +1197,6 @@ func formatBytes(b int) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// Global version variable injected via -ldflags="-X main.version=..."
 var version = "dev"
 
 func handleCLIArgs() bool {
@@ -1107,16 +1224,20 @@ func handleCLIArgs() bool {
 
 	case "collections", "col":
 		col := loadCollections()
-		fmt.Printf("📁 Collections: %s (%d items)\n\n", col.Name, len(col.Items))
-		for i, it := range col.Items {
-			fmt.Printf("  %d. [%-6s] %-25s -> %s\n", i+1, it.Method, it.Name, it.URL)
+		fmt.Printf("📁 Collections: %s (%d folders)\n\n", col.Name, len(col.Folders))
+		for _, f := range col.Folders {
+			fmt.Printf("📂 %s (%d requests)\n", f.Name, len(f.Items))
+			for i, it := range f.Items {
+				fmt.Printf("   %d. [%-6s] %-25s -> %s\n", i+1, it.Method, it.Name, it.URL)
+			}
+			fmt.Println()
 		}
 		return true
 
 	case "help", "-h", "--help":
 		fmt.Printf("Martis TUI - Ultra-Light REST Client (%s)\n\n", version)
 		fmt.Println("Penggunaan:")
-		fmt.Println("  martis             Buka Terminal User Interface")
+		fmt.Println("  martis             Buka Terminal User Interface (dengan Mouse Click Tree View)")
 		fmt.Println("  martis collections Tampilkan daftar request di collection")
 		fmt.Println("  martis version     Tampilkan versi aplikasi")
 		fmt.Println("  martis update      Perbarui aplikasi dari upstream")
@@ -1133,7 +1254,12 @@ func main() {
 		return
 	}
 
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	// tea.WithMouseCellMotion() mengaktifkan event klik mouse pada terminal!
+	p := tea.NewProgram(
+		initialModel(),
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error starting Martis TUI: %v\n", err)
 		os.Exit(1)
