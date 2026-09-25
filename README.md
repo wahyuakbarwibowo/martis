@@ -46,6 +46,8 @@ martis
 curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | bash
 ```
 
+Skrip mengunduh binary rilis terbaru untuk macOS/Linux (amd64/arm64), memverifikasi checksum, lalu memasangnya ke `/usr/local/bin` (atau `~/.local/bin`). Tidak butuh Go. Atur `VERSION=v0.4.0` untuk versi tertentu atau `INSTALL_DIR=...` untuk lokasi lain.
+
 ### Install via Package Manager
 
 Release binaries are also distributed through package managers; Go is not required.
