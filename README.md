@@ -1,19 +1,11 @@
 <div align="center">
 
-```text
-               .---.
-              /     \
-             | () () |   "3,000 worlds, and not a single
-              \  -  /     worthy API client... until now."
-               /`---'\
-              / /| |\ \          ⚡ MARTIS ⚡
-             (_/ | | \_)
-```
+<img src="assets/martis.png" alt="Martis MLBB" width="130" style="border-radius: 50%; box-shadow: 0 4px 12px rgba(125, 86, 244, 0.4);" />
 
 # ⚡ Martis
 
 **Ultra-lightweight, blazing-fast Terminal User Interface (TUI) REST client.**  
-*A lightweight Postman alternative for your terminal, built with Go & Bubble Tea.*
+*"3,000 worlds, and not a single worthy API client... until now."*
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/wahyuakbarwibowo/martis?color=00ADD8)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -26,8 +18,7 @@
 
 ## 🌟 Highlights
 
-- ⚔️ **Ashura King of REST Clients**: Menaklukkan ribuan request endpoint dengan kecepatan instan.
-- 🏎️ **Ultra-Fast & Zero Lag**: Memory footprint minimal (< 20MB RAM) dengan waktu startup instan.
+- ⚔️ **Ashura King of REST Clients**: Menaklukkan ribuan request endpoint dengan kecepatan instan dan memory footprint super hemat (< 20MB RAM).
 - 🖥️ **Split-Screen Responsive**: Request Builder di panel kiri dan Response Viewer di panel kanan.
 - ⌨️ **Keyboard First**: Navigasi intuitif menggunakan tombol `Tab`, `Shift+Tab`, dan shortcut tanpa perlu mouse.
 - 📡 **Built-in Async Engine**: Eksekusi HTTP non-blocking menggunakan native goroutines dan Go standard library `net/http`.
