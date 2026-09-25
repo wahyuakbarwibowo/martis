@@ -35,9 +35,9 @@ func defaultStoragePath() string {
 	if err != nil {
 		return "martis_collections.json"
 	}
-	configDir := filepath.Join(home, ".config", "martis")
-	_ = os.MkdirAll(configDir, 0755)
-	return filepath.Join(configDir, "collections.json")
+	dataDir := filepath.Join(home, "martis")
+	_ = os.MkdirAll(dataDir, 0700)
+	return filepath.Join(dataDir, "collections.json")
 }
 
 // Load membaca data collection dari disk
@@ -45,8 +45,30 @@ func (r *fileCollectionRepository) Load() (*domain.Collection, error) {
 	data, err := os.ReadFile(r.filePath)
 	if err == nil {
 		var col domain.Collection
-		if json.Unmarshal(data, &col) == nil && len(col.Folders) > 0 {
-			return &col, nil
+		if err := json.Unmarshal(data, &col); err != nil {
+			return nil, fmt.Errorf("decode collections: %w", err)
+		}
+		return &col, nil
+	}
+	if !os.IsNotExist(err) {
+		return nil, err
+	}
+	// Read existing collections from the previous location before creating defaults.
+	if r.filePath == defaultStoragePath() {
+		if home, homeErr := os.UserHomeDir(); homeErr == nil {
+			legacy := filepath.Join(home, ".config", "martis", "collections.json")
+			if data, legacyErr := os.ReadFile(legacy); legacyErr == nil {
+				var col domain.Collection
+				if decodeErr := json.Unmarshal(data, &col); decodeErr != nil {
+					return nil, fmt.Errorf("decode legacy collections: %w", decodeErr)
+				}
+				if saveErr := r.Save(&col); saveErr != nil {
+					return nil, saveErr
+				}
+				return &col, nil
+			} else if !os.IsNotExist(legacyErr) {
+				return nil, legacyErr
+			}
 		}
 	}
 
@@ -108,15 +130,13 @@ func (r *fileCollectionRepository) Load() (*domain.Collection, error) {
 			},
 		},
 	}
-	_ = r.Save(defaultCol)
+	if err := r.Save(defaultCol); err != nil {
+		return nil, err
+	}
 	return defaultCol, nil
 }
 
 // Save menyimpan data collection ke disk
 func (r *fileCollectionRepository) Save(col *domain.Collection) error {
-	data, err := json.MarshalIndent(col, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal collection: %w", err)
-	}
-	return os.WriteFile(r.filePath, data, 0644)
+	return WriteJSON(r.filePath, col)
 }

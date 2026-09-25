@@ -1,0 +1,22 @@
+pkgname=martis
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Terminal REST client"
+arch=('x86_64' 'aarch64')
+url="https://github.com/wahyuakbarwibowo/martis"
+license=('MIT')
+makedepends=('go')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$pkgname-$pkgver"
+  export CGO_ENABLED=0
+  go build -trimpath -ldflags "-s -w -X main.version=$pkgver" -o martis .
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 martis "$pkgdir/usr/bin/martis"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
