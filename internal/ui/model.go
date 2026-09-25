@@ -70,14 +70,17 @@ func configTabAtX(x int) ConfigTab {
 	return TabAssertions
 }
 
+var responseTabNames = []string{"Body", "Headers", "Cookies"}
+
 func responseTabAtX(x int) int {
-	if x < 8 {
-		return 0
+	for i, name := range responseTabNames {
+		width := lipgloss.Width(styles.InactiveTab.Render(name))
+		if x < width {
+			return i
+		}
+		x -= width
 	}
-	if x < 18 {
-		return 1
-	}
-	return 2
+	return len(responseTabNames) - 1
 }
 
 func (m Model) collectionItems() []treeRow {
@@ -235,6 +238,7 @@ func NewModel(repo repository.CollectionRepository, client httpclient.Client) Mo
 	urlIn.SetValue("https://httpbin.org/anything")
 	urlIn.CharLimit = 500
 	urlIn.Width = 35
+	urlIn.Prompt = ""
 
 	hKey := textinput.New()
 	hKey.Placeholder = "Header Name (e.g. Content-Type)"
@@ -269,7 +273,7 @@ func NewModel(repo repository.CollectionRepository, client httpclient.Client) Mo
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(styles.PrimaryColor)
+	sp.Style = lipgloss.NewStyle().Foreground(styles.WarningColor)
 	editor := textarea.New()
 	editor.SetHeight(8)
 	editor.ShowLineNumbers = true
@@ -280,6 +284,9 @@ func NewModel(repo repository.CollectionRepository, client httpclient.Client) Mo
 	modalEditor := textarea.New()
 	modalEditor.SetHeight(12)
 	modalEditor.SetWidth(64)
+	for _, t := range []*textarea.Model{&ta, &editor, &formEditor, &modalEditor} {
+		quietTextarea(t)
+	}
 
 	col, _ := repo.Load()
 
@@ -1043,11 +1050,7 @@ type benchmarkMsg struct {
 
 func (m *Model) applyTheme() {
 	colors := []string{"#BD93F9", "#CBA6F7", "#88C0D0", "#7AA2F7", "#F92672"}
-	color := lipgloss.Color(colors[m.themeIndex%len(colors)])
-	styles.ActiveBorder = color
-	styles.ActivePanel = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(color)
-	styles.Title = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Background(color).Padding(0, 1)
-	styles.ActiveTab = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Background(color).Padding(0, 1)
+	styles.SetAccent(lipgloss.Color(colors[m.themeIndex%len(colors)]))
 }
 
 // ImportCurl fills the request editor from a cURL command before the TUI starts.
@@ -1280,8 +1283,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if msg.X >= 30 && msg.X < 30+requestWidth && msg.Y == 2 {
 				pos := msg.X - 30
-				if pos < 36 {
-					m.methodIndex = pos / 6
+				if pos < 1+7*len(m.methods) {
+					m.methodIndex = max(0, pos-1) / 7
 					if m.methodIndex >= len(m.methods) {
 						m.methodIndex = len(m.methods) - 1
 					}
@@ -1331,7 +1334,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.responseBody = msg.Body
 		if msg.Err != nil {
-			m.viewport.SetContent(fmt.Sprintf("❌ Request Error:\n\n%v\n\nDuration: %v", msg.Err, msg.Duration))
+			m.viewport.SetContent(fmt.Sprintf("Request failed\n\n%v\n\nDuration: %v", msg.Err, msg.Duration))
 			m.status = msg.Err.Error()
 		} else {
 			captured, captureFailures := requestutil.Capture(msg, m.lastPayload.Assertions)
@@ -1777,37 +1780,30 @@ func (m Model) View() string {
 		panelHeight = 10
 	}
 
-	sidebarContent := m.renderSidebar(sidebarWidth)
-	sidebarBorder := styles.Panel.Width(sidebarWidth).Height(panelHeight)
-	if m.focus == FocusSidebar {
-		sidebarBorder = styles.ActivePanel.Width(sidebarWidth).Height(panelHeight)
+	panel := func(focused bool, width int, content string) string {
+		style := styles.Panel
+		if focused {
+			style = styles.ActivePanel
+		}
+		return style.Width(width).Height(panelHeight).Render(content)
 	}
-	sidebarPanel := sidebarBorder.Render(sidebarContent)
-
-	leftContent := m.renderRequestBuilder(halfWidth)
-	leftBorder := styles.Panel.Width(halfWidth).Height(panelHeight)
-	if m.focus != FocusResponse && m.focus != FocusSidebar {
-		leftBorder = styles.ActivePanel.Width(halfWidth).Height(panelHeight)
-	}
-	leftPanel := leftBorder.Render(leftContent)
-
-	rightContent := m.renderResponseViewer(halfWidth)
-	rightBorder := styles.Panel.Width(halfWidth).Height(panelHeight)
-	if m.focus == FocusResponse {
-		rightBorder = styles.ActivePanel.Width(halfWidth).Height(panelHeight)
-	}
-	rightPanel := rightBorder.Render(rightContent)
-
+	sidebarPanel := panel(m.focus == FocusSidebar, sidebarWidth, m.renderSidebar(sidebarWidth))
+	leftPanel := panel(m.focus != FocusResponse && m.focus != FocusSidebar, halfWidth, m.renderRequestBuilder(halfWidth))
+	rightPanel := panel(m.focus == FocusResponse, halfWidth, m.renderResponseViewer(halfWidth))
 	mainBody := lipgloss.JoinHorizontal(lipgloss.Top, sidebarPanel, " ", leftPanel, " ", rightPanel)
-	header := styles.Title.Render("⚡ MARTIS TUI - Ultra-Light REST Client")
-	footer := styles.Help.Render(
-		"[Ctrl+S] Send [Ctrl+E] Save [Ctrl+F] File [Ctrl+H] History [Ctrl+G] Env [Ctrl+I] cURL in [Ctrl+X] cURL out [Ctrl+B] Benchmark [Ctrl+O] Save response [Ctrl+D] Diff",
-	)
+
+	left := " " + styles.Title.Render("martis") + styles.Faint.Render("  rest client")
+	env := "no environment"
 	if m.activeEnvName != "" {
-		footer += "  env=" + m.activeEnvName
+		env = strings.TrimSuffix(m.activeEnvName, ".env")
 	}
+	right := styles.Muted.Render("env ") + styles.Pill.Foreground(styles.TextColor).Render(env) + " "
+	header := left + strings.Repeat(" ", max(1, lipgloss.Width(mainBody)-lipgloss.Width(left)-lipgloss.Width(right))) + right
+
+	hints := []string{"^S send", "^E save", "^H history", "^G env", "^I import", "^X curl", "^B bench", "^O save body", "^D diff", "F2 theme"}
+	footer := styles.Help.Render(" " + strings.Join(hints, "  "))
 	if m.status != "" {
-		footer += "  " + m.status
+		footer += styles.Faint.Render("   ·   ") + styles.Muted.Render(m.status)
 	}
 
 	rendered := lipgloss.JoinVertical(lipgloss.Left, header, mainBody, footer)
@@ -1820,58 +1816,56 @@ func (m Model) View() string {
 	return rendered
 }
 
-func (m Model) renderSidebar(width int) string {
-	var lines []string
-	lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(styles.AccentColor).Render("📂 COLLECTIONS"))
-	lines = append(lines, lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("Click or ↑/↓/Enter"))
-
-	for i, row := range m.sidebarRows {
-		prefix := "  "
-		if i == m.selectedTreeIndex && m.focus == FocusSidebar {
-			prefix = "▶ "
-		}
-
-		if row.rowType == rowFolder {
-			icon := "📁 ▶"
-			if row.isExpanded {
-				icon = "📂 ▼"
-			}
-			folderText := ansi.Truncate(fmt.Sprintf("%s%s %s", prefix, icon, row.name), width-4, "…")
-			if i == m.selectedTreeIndex && m.focus == FocusSidebar {
-				lines = append(lines, styles.ActiveRow.Render(folderText))
-			} else {
-				lines = append(lines, styles.Folder.Render(folderText))
-			}
-		} else {
-			methodColor := lipgloss.Color("#00D7D7")
-			if row.method == "POST" {
-				methodColor = lipgloss.Color("#00E676")
-			} else if row.method == "DELETE" {
-				methodColor = lipgloss.Color("#FF5252")
-			}
-			badge := lipgloss.NewStyle().Foreground(methodColor).Bold(true).Render(row.method)
-			itemText := ansi.Truncate(fmt.Sprintf("%s  • %s %s", prefix, badge, row.name), width-4, "…")
-
-			if i == m.selectedTreeIndex && m.focus == FocusSidebar {
-				lines = append(lines, styles.ActiveRow.Render(itemText))
-			} else {
-				lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color("#D8DEE9")).Render(itemText))
-			}
-		}
+// quietTextarea swaps the heavy default gutter for a faint hairline.
+func quietTextarea(t *textarea.Model) {
+	t.Prompt = "│ "
+	for _, st := range []*textarea.Style{&t.FocusedStyle, &t.BlurredStyle} {
+		st.Prompt = styles.Faint
+		st.LineNumber = styles.Faint
+		st.CursorLineNumber = styles.Muted
 	}
+	t.FocusedStyle.CursorLine = lipgloss.NewStyle().Background(styles.SurfaceColor)
+}
 
+// listRow renders one selectable row in the sidebar and modals.
+func listRow(text string, selected bool) string {
+	if selected {
+		return styles.ActiveRow.Render(" " + ansi.Strip(text) + " ")
+	}
+	return " " + text
+}
+
+func (m Model) renderSidebar(width int) string {
+	lines := []string{
+		styles.Muted.Bold(true).Render(" COLLECTIONS"),
+		styles.Faint.Render(" click or ↑/↓ enter"),
+	}
+	for i, row := range m.sidebarRows {
+		selected := i == m.selectedTreeIndex && m.focus == FocusSidebar
+		var text string
+		if row.rowType == rowFolder {
+			chevron := "▸"
+			if row.isExpanded {
+				chevron = "▾"
+			}
+			text = styles.Faint.Render(chevron) + " " + styles.Folder.Render(row.name)
+		} else {
+			text = "  " + styles.MethodStyle(row.method).Width(7).Render(row.method) + styles.Row.Render(row.name)
+		}
+		lines = append(lines, listRow(ansi.Truncate(text, width-3, "…"), selected))
+	}
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
 func (m Model) renderSaveModal(background string) string {
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
-		lipgloss.NewStyle().Bold(true).Foreground(styles.AccentColor).Render("💾 Save Request to Collection"),
+		styles.Title.Render("Save request"),
 		"",
-		styles.Label.Render("Enter request name:"),
+		styles.Label.Render("Name"),
 		m.saveNameInput.View(),
 		"",
-		lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("[Enter] Save • [Esc] Cancel"),
+		styles.Faint.Render("enter save  ·  esc cancel"),
 	)
 	modal := styles.ModalBox.Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
@@ -1880,50 +1874,49 @@ func (m Model) renderSaveModal(background string) string {
 func (m Model) renderRequestBuilder(width int) string {
 	var sections []string
 
-	var methodBadges []string
+	// Each method occupies a fixed 7-cell slot; mouse clicks map x/7 to the method.
+	var methodRow string
 	for i, meth := range m.methods {
 		if i == m.methodIndex {
+			style := styles.ActiveMethod.Foreground(styles.MethodStyle(meth).GetForeground())
 			if m.focus == FocusMethod {
-				methodBadges = append(methodBadges, styles.ActiveMethod.Render("▶ "+meth))
-			} else {
-				methodBadges = append(methodBadges, styles.Method.Render(meth))
+				style = style.Underline(true)
 			}
+			methodRow += style.Render(meth)
 		} else {
-			methodBadges = append(methodBadges, lipgloss.NewStyle().Foreground(styles.SubtleColor).Render(" "+meth+" "))
+			methodRow += styles.Method.Render(meth)
 		}
 	}
-	methodRow := lipgloss.JoinHorizontal(lipgloss.Center, methodBadges...)
 
-	sendBtn := styles.SendBtn.Render(" Send [Ctrl+S] ")
+	sendBtn := styles.SendBtn.Render("Send ^S")
 	if m.focus == FocusSend {
-		sendBtn = styles.ActiveSendBtn.Render("▶ Send [Ctrl+S] ")
+		sendBtn = styles.ActiveSendBtn.Render("Send ^S")
 	}
 	if m.loading {
-		sendBtn = lipgloss.NewStyle().Background(styles.WarningColor).Foreground(lipgloss.Color("#000000")).Render(
-			fmt.Sprintf(" %s Sending... ", m.spinner.View()),
-		)
+		sendBtn = styles.SendBtn.Foreground(styles.WarningColor).Render(m.spinner.View() + " Sending")
 	}
-
-	saveBtn := lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("[Ctrl+E] Save")
-	topBar := lipgloss.JoinHorizontal(lipgloss.Center, methodRow, "  ", sendBtn, "  ", saveBtn)
+	topBar := " " + methodRow
+	// Only show Send when it fits; a wrapped row would shift the mouse map.
+	if lipgloss.Width(topBar+" "+sendBtn) <= width {
+		topBar += " " + sendBtn
+	}
 	sections = append(sections, topBar)
 
-	urlPrompt := styles.Label.Render("URL: ")
+	urlPrompt := styles.Label.Render(" URL ")
 	if m.focus == FocusURL {
-		urlPrompt = lipgloss.NewStyle().Foreground(styles.AccentColor).Bold(true).Render("URL ▶ ")
+		urlPrompt = lipgloss.NewStyle().Foreground(styles.AccentColor).Bold(true).Render(" URL ")
 	}
 	sections = append(sections, lipgloss.JoinHorizontal(lipgloss.Left, urlPrompt, m.urlInput.View()))
 
 	tabLabels := []string{"Hdr", "JSON", "Form", "Query", "Auth", "Tests"}
 	var renderedTabs []string
 	for i, label := range tabLabels {
-		if ConfigTab(i) == m.tab {
-			if m.focus == FocusTabs {
-				renderedTabs = append(renderedTabs, styles.ActiveTab.Copy().Background(styles.AccentColor).Foreground(lipgloss.Color("#000000")).Render(label))
-			} else {
-				renderedTabs = append(renderedTabs, styles.ActiveTab.Render(label))
-			}
-		} else {
+		switch {
+		case ConfigTab(i) == m.tab && m.focus == FocusTabs:
+			renderedTabs = append(renderedTabs, styles.FocusedTab.Render(label))
+		case ConfigTab(i) == m.tab:
+			renderedTabs = append(renderedTabs, styles.ActiveTab.Render(label))
+		default:
 			renderedTabs = append(renderedTabs, styles.InactiveTab.Render(label))
 		}
 	}
@@ -1932,35 +1925,29 @@ func (m Model) renderRequestBuilder(width int) string {
 	var configContent string
 	switch m.tab {
 	case TabHeaders:
-		configContent = lipgloss.JoinVertical(lipgloss.Left, styles.Label.Render("Headers (Key: Value, one per line; include Authorization here)"), m.configEditor.View())
-
+		configContent = lipgloss.JoinVertical(lipgloss.Left, styles.Label.Render(" Headers · Key: Value per line"), m.configEditor.View())
 	case TabBodyRaw:
-		prefix := "Payload (Raw JSON):"
+		label := " Body · raw JSON"
 		if m.focus == FocusConfig {
-			prefix = "▶ Payload (Raw JSON): [Esc to unfocus textarea]"
+			label += styles.Faint.Render("  esc to leave editor")
 		}
-		configContent = lipgloss.JoinVertical(
-			lipgloss.Left,
-			styles.Label.Render(prefix),
-			m.jsonBody.View(),
-		)
-
+		configContent = lipgloss.JoinVertical(lipgloss.Left, styles.Label.Render(label), m.jsonBody.View())
 	case TabBodyForm:
 		configContent = lipgloss.JoinVertical(
 			lipgloss.Left,
-			styles.Label.Render("Form-Data (field=value, @fileField=/path/to/file):"),
+			styles.Label.Render(" Form data · field=value, @file=/path"),
 			m.formEditor.View(),
-			lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("Press Ctrl+F to choose the first file, or edit multiple rows directly."),
+			styles.Faint.Render(" ^F choose a file, or edit rows directly"),
 		)
 	case TabQuery, TabAuth, TabAssertions:
-		label := "Query Parameters (key=value per row)"
+		label := " Query · key=value per line"
 		if m.tab == TabAuth {
-			label = "F3 preset; edit authentication JSON (none, bearer, basic, api-key, oauth2)"
+			label = " Auth · JSON (none, bearer, basic, api-key, oauth2) · F3 presets"
 		}
 		if m.tab == TabAssertions {
-			label = "Assertions (Status == 200 / json.id != nil / set token = json.access_token)"
+			label = " Tests · Status == 200 · json.id != nil · set token = json.access_token"
 		}
-		configContent = lipgloss.JoinVertical(lipgloss.Left, styles.Label.Render(label), m.configEditor.View())
+		configContent = lipgloss.JoinVertical(lipgloss.Left, styles.Label.Render(ansi.Truncate(label, width-2, "…")), m.configEditor.View())
 	}
 
 	sections = append(sections, configContent)
@@ -1968,54 +1955,47 @@ func (m Model) renderRequestBuilder(width int) string {
 }
 
 func (m Model) renderResponseViewer(width int) string {
-	var statusBadge string
-	var metaStats string
-
-	if m.lastResp == nil {
-		statusBadge = styles.MetaBadge.Render("STATUS: IDLE")
-		metaStats = styles.MetaBadge.Render("Time: 0ms • Size: 0B")
-	} else if m.lastResp.Err != nil {
-		statusBadge = styles.StatusErr.Render("ERR: FAILED")
-		metaStats = styles.MetaBadge.Render(fmt.Sprintf("Time: %dms", m.lastResp.Duration.Milliseconds()))
-	} else {
+	status := styles.Muted.Render("No response yet")
+	var meta string
+	if m.lastResp != nil && m.lastResp.Err != nil {
+		status = lipgloss.NewStyle().Foreground(styles.ErrorColor).Bold(true).Render("Request failed")
+		meta = fmt.Sprintf("%d ms", m.lastResp.Duration.Milliseconds())
+	} else if m.lastResp != nil {
 		code := m.lastResp.StatusCode
-		statusStr := fmt.Sprintf("%d %s", code, http.StatusText(code))
-		if code >= 200 && code < 300 {
-			statusBadge = styles.Status2xx.Render(statusStr)
-		} else if code >= 300 && code < 400 {
-			statusBadge = styles.Status3xx.Render(statusStr)
-		} else {
-			statusBadge = styles.StatusErr.Render(statusStr)
+		color := styles.ErrorColor
+		if code < 300 {
+			color = styles.SuccessColor
+		} else if code < 400 {
+			color = styles.WarningColor
 		}
-
-		bodySize := len(m.lastResp.Body)
-		metaStats = styles.MetaBadge.Render(
-			fmt.Sprintf("Time: %dms • Size: %s", m.lastResp.Duration.Milliseconds(), domain.FormatBytes(bodySize)),
-		)
+		status = lipgloss.NewStyle().Foreground(color).Bold(true).Render(fmt.Sprintf("%d %s", code, http.StatusText(code)))
+		meta = fmt.Sprintf("%d ms  ·  %s", m.lastResp.Duration.Milliseconds(), domain.FormatBytes(len(m.lastResp.Body)))
 	}
+	if m.responseDiff {
+		meta += "  ·  diff"
+	}
+	statusBar := " " + status + "  " + styles.Muted.Render(meta)
 
-	statusBar := lipgloss.JoinHorizontal(lipgloss.Center, statusBadge, "  ", metaStats)
-	var focusIndicator string
+	hint := styles.Faint.Render(" tab to focus and scroll")
 	if m.focus == FocusResponse {
-		focusIndicator = lipgloss.NewStyle().Foreground(styles.AccentColor).Bold(true).Render(" [VIEWPORT ACTIVE: Scroll with ↑/↓/j/k]")
-	} else {
-		focusIndicator = lipgloss.NewStyle().Foreground(styles.SubtleColor).Render(" [Tab into Viewport to scroll]")
+		hint = styles.Faint.Render(" ↑/↓ scroll  ·  ←/→ tabs  ·  / filter  ·  ^D diff")
 	}
 
-	responseTabs := []string{"Body", "Headers", "Cookies"}
-	for i, name := range responseTabs {
+	var tabs []string
+	for i, name := range responseTabNames {
 		if i == m.responseTab {
-			responseTabs[i] = "▶ " + name
+			tabs = append(tabs, styles.ActiveTab.Render(name))
+		} else {
+			tabs = append(tabs, styles.InactiveTab.Render(name))
 		}
 	}
-	responseContent := m.viewport.View()
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		statusBar,
-		focusIndicator,
-		lipgloss.JoinHorizontal(lipgloss.Left, responseTabs...),
+		hint,
+		lipgloss.JoinHorizontal(lipgloss.Left, tabs...),
 		"",
-		lipgloss.NewStyle().Width(width-4).Render(responseContent),
+		lipgloss.NewStyle().Width(width-4).Render(m.viewport.View()),
 	)
 }
 
@@ -2030,7 +2010,7 @@ func (m *Model) refreshResponse() {
 	if m.responseTab == 0 && m.responseDiff {
 		content = requestutil.Diff(m.prevResponseBody, m.responseBody)
 	} else if m.responseTab == 0 && m.responseSearch == "" && len(content) > largeResponseBytes && !m.showLargeBody {
-		content = fmt.Sprintf("⚠️  Response besar (%.1f MB) tidak langsung ditampilkan agar TUI tetap ringan.\n\n[Enter] Tampilkan tetap\n[/]     Filter teks atau json.path\n[Ctrl+O] Simpan ke file", float64(len(content))/(1<<20))
+		content = fmt.Sprintf("Response besar (%.1f MB) tidak langsung ditampilkan agar TUI tetap ringan.\n\n[Enter] Tampilkan tetap\n[/]     Filter teks atau json.path\n[Ctrl+O] Simpan ke file", float64(len(content))/(1<<20))
 	}
 	if m.responseTab == 1 {
 		content = formatResponseHeaders(m.responseHeaders)
@@ -2077,39 +2057,27 @@ func (m Model) renderModal(background string) string {
 		title = "Request History"
 		for i, entry := range m.history {
 			name := fmt.Sprintf("%s %s [%d]", entry.Request.Method, entry.Request.URL, entry.Status)
-			if i == m.modalIndex {
-				name = "▶ " + name
-			}
-			body += name + "\n"
+			body += listRow(name, i == m.modalIndex) + "\n"
 		}
 		body += "↑/↓ select • Enter load • Esc close"
 	case modalEnvironment:
 		title = "Environment"
 		for i, path := range m.envFiles {
 			name := filepath.Base(path)
-			if i == m.modalIndex {
-				name = "▶ " + name
-			}
-			body += name + "\n"
+			body += listRow(name, i == m.modalIndex) + "\n"
 		}
-		body += "Place .env files in ~/.config/martis/environments\n↑/↓ select • Enter activate"
+		body += "Place .env files in ~/martis/environments\n↑/↓ select • Enter activate"
 	case modalTheme:
 		title = "Theme"
 		for i, name := range []string{"Dracula", "Catppuccin", "Nord", "Tokyo Night", "Monokai"} {
-			if i == m.modalIndex {
-				name = "▶ " + name
-			}
-			body += name + "\n"
+			body += listRow(name, i == m.modalIndex) + "\n"
 		}
 		body += "↑/↓ select • Enter apply"
 	case modalCollections:
 		title = "Saved requests"
 		for i, row := range m.collectionItems() {
 			name := "[" + row.method + "] " + row.name
-			if i == m.modalIndex {
-				name = "▶ " + name
-			}
-			body += name + "\n"
+			body += listRow(name, i == m.modalIndex) + "\n"
 		}
 		body += "↑/↓ select • Enter load • y duplicate • d delete"
 	case modalFolder:
@@ -2122,10 +2090,7 @@ func (m Model) renderModal(background string) string {
 		title = "Move request to folder"
 		for i, folder := range m.collection.Folders {
 			name := folder.Name
-			if i == m.modalIndex {
-				name = "▶ " + name
-			}
-			body += name + "\n"
+			body += listRow(name, i == m.modalIndex) + "\n"
 		}
 		body += "↑/↓ select • Enter move"
 	case modalFilePicker:
@@ -2134,26 +2099,20 @@ func (m Model) renderModal(background string) string {
 			body = "No files found in " + m.filePickerDir
 		} else {
 			for i, name := range m.fileCandidates {
-				if i == m.modalIndex {
-					name = "▶ " + name
-				}
-				body += name + "\n"
+				body += listRow(name, i == m.modalIndex) + "\n"
 			}
 			body += "Enter/click to use file"
 		}
 	case modalAuth:
 		title = "Authentication preset"
 		for i, name := range []string{"None", "Bearer Token", "Basic Auth", "API Key in Header", "API Key in Query", "OAuth 2.0 Client Credentials"} {
-			if i == m.modalIndex {
-				name = "▶ " + name
-			}
-			body += name + "\n"
+			body += listRow(name, i == m.modalIndex) + "\n"
 		}
 		body += "Select a preset, then fill its fields in the Auth tab (JSON)."
 	}
 	if m.modalError != "" {
-		body += "\nError: " + m.modalError
+		body += "\n" + lipgloss.NewStyle().Foreground(styles.ErrorColor).Render(m.modalError)
 	}
-	modal := styles.ModalBox.Render(lipgloss.JoinVertical(lipgloss.Left, styles.Label.Render(title), "", body, "", lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("Esc closes")))
+	modal := styles.ModalBox.Render(lipgloss.JoinVertical(lipgloss.Left, styles.Title.Render(title), "", body, "", styles.Faint.Render("esc close")))
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }

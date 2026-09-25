@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Martis TUI installer for macOS & Linux: downloads the latest release binary.
+# Martis installer for macOS & Linux: downloads the latest release binary.
+# MARTIS_DESKTOP=1 also installs the desktop app.
 REPO="wahyuakbarwibowo/martis"
 BINARY_NAME="martis"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
@@ -33,39 +34,52 @@ case "${VERSION}" in
     *) echo "❌ Gagal menentukan versi rilis terbaru"; exit 1 ;;
 esac
 
-ARCHIVE="${BINARY_NAME}_${VERSION#v}_${OS}_${ARCH}.tar.gz"
 BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-echo "📥 Mengunduh ${ARCHIVE} (${VERSION})..."
-curl -fsSL -o "${TMP_DIR}/${ARCHIVE}" "${BASE_URL}/${ARCHIVE}"
-curl -fsSL -o "${TMP_DIR}/checksums.txt" "${BASE_URL}/checksums.txt"
+sha256() {
+    if command -v sha256sum &> /dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
+}
 
-echo "🔐 Memverifikasi checksum..."
-EXPECTED="$(grep " ${ARCHIVE}\$" "${TMP_DIR}/checksums.txt" | cut -d' ' -f1)"
-if command -v sha256sum &> /dev/null; then
-    ACTUAL="$(sha256sum "${TMP_DIR}/${ARCHIVE}" | cut -d' ' -f1)"
-else
-    ACTUAL="$(shasum -a 256 "${TMP_DIR}/${ARCHIVE}" | cut -d' ' -f1)"
-fi
-if [ -z "${EXPECTED}" ] || [ "${EXPECTED}" != "${ACTUAL}" ]; then
-    echo "❌ Checksum tidak cocok, instalasi dibatalkan"
-    exit 1
-fi
+# install_binary <name> <archive> <checksum file>: download, verify, and install one binary.
+install_binary() {
+    local name="$1" archive="$2" sums="$3"
+    echo "📥 Mengunduh ${archive} (${VERSION})..."
+    curl -fsSL -o "${TMP_DIR}/${archive}" "${BASE_URL}/${archive}"
+    curl -fsSL -o "${TMP_DIR}/${sums}" "${BASE_URL}/${sums}"
 
-tar -xzf "${TMP_DIR}/${ARCHIVE}" -C "${TMP_DIR}" "${BINARY_NAME}"
-chmod +x "${TMP_DIR}/${BINARY_NAME}"
+    echo "🔐 Memverifikasi checksum..."
+    local expected
+    expected="$(grep " ${archive}\$" "${TMP_DIR}/${sums}" | cut -d' ' -f1)"
+    if [ -z "${expected}" ] || [ "${expected}" != "$(sha256 "${TMP_DIR}/${archive}")" ]; then
+        echo "❌ Checksum ${archive} tidak cocok, instalasi dibatalkan"
+        exit 1
+    fi
 
-echo "📦 Memasang binary ke ${INSTALL_DIR}..."
-if [ -w "${INSTALL_DIR}" ]; then
-    mv "${TMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
-else
-    echo "Memerlukan akses sudo untuk memasang ke ${INSTALL_DIR}:"
-    sudo mv "${TMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
+    tar -xzf "${TMP_DIR}/${archive}" -C "${TMP_DIR}" "${name}"
+    chmod +x "${TMP_DIR}/${name}"
+    echo "📦 Memasang ${name} ke ${INSTALL_DIR}..."
+    if [ -w "${INSTALL_DIR}" ]; then
+        mv "${TMP_DIR}/${name}" "${INSTALL_DIR}/${name}"
+    else
+        echo "Memerlukan akses sudo untuk memasang ke ${INSTALL_DIR}:"
+        sudo mv "${TMP_DIR}/${name}" "${INSTALL_DIR}/${name}"
+    fi
+}
+
+install_binary "${BINARY_NAME}" "${BINARY_NAME}_${VERSION#v}_${OS}_${ARCH}.tar.gz" checksums.txt
+
+# Aplikasi desktop opsional: MARTIS_DESKTOP=1
+if [ "${MARTIS_DESKTOP:-0}" = "1" ]; then
+    DESKTOP_ARCHIVE="${BINARY_NAME}-desktop_${VERSION#v}_${OS}_${ARCH}.tar.gz"
+    install_binary "${BINARY_NAME}-desktop" "${DESKTOP_ARCHIVE}" "${DESKTOP_ARCHIVE}.sha256"
 fi
 
 echo ""
-echo "✅ Martis TUI ${VERSION} berhasil dipasang!"
-echo "🚀 Jalankan langsung di terminal Anda:"
-echo "   martis"
+echo "✅ Martis ${VERSION} berhasil dipasang!"
+echo "🚀 Jalankan di terminal:"
+echo "   martis            # TUI"
+if [ "${MARTIS_DESKTOP:-0}" = "1" ]; then
+    echo "   martis-desktop    # aplikasi desktop"
+fi

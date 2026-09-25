@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Martis</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="titlebar">
+    <span class="brand">martis</span>
+    <span class="crumb" id="crumb">Untitled request</span>
+    <div class="spacer"></div>
+    <label class="env">
+      <span>env</span>
+      <select id="env"><option value="">none</option></select>
+    </label>
+  </header>
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <span>Collections</span>
+      <button class="icon" id="new-request" title="New request">+</button>
+    </div>
+    <input class="search" id="tree-filter" placeholder="Filter" spellcheck="false">
+    <nav class="tree" id="tree"></nav>
+  </aside>
+
+  <main class="request">
+    <div class="urlbar">
+      <select id="method" class="method">
+        <option>GET</option><option>POST</option><option>PUT</option>
+        <option>PATCH</option><option>DELETE</option><option>HEAD</option>
+      </select>
+      <input id="url" class="url" placeholder="https://api.example.com/users" spellcheck="false" autocomplete="off">
+      <button id="send" class="primary">Send <kbd>⌘↵</kbd></button>
+    </div>
+    <div class="tabs" data-group="req">
+      <button class="tab active" data-tab="body">Body</button>
+      <button class="tab" data-tab="headers">Headers</button>
+      <button class="tab" data-tab="tests">Tests</button>
+      <div class="spacer"></div>
+      <input id="name" class="name" placeholder="Request name" spellcheck="false">
+      <button id="save" class="ghost">Save <kbd>⌘S</kbd></button>
+    </div>
+    <textarea class="editor pane" data-pane="body" id="body" spellcheck="false" placeholder='{ "hello": "world" }'></textarea>
+    <textarea class="editor pane" data-pane="headers" id="headers" spellcheck="false" placeholder="Content-Type: application/json&#10;Authorization: Bearer {{token}}" hidden></textarea>
+    <textarea class="editor pane" data-pane="tests" id="tests" spellcheck="false" placeholder="Status == 200&#10;json.id != nil&#10;set token = json.access_token" hidden></textarea>
+  </main>
+
+  <section class="response">
+    <div class="response-head">
+      <span id="status" class="status muted">No response yet</span>
+      <span id="meta" class="muted"></span>
+      <div class="spacer"></div>
+      <input id="filter" class="filter" placeholder="Filter text or json.path  ⌘F" spellcheck="false">
+      <button id="diff" class="ghost toggle" title="Diff with previous response">Diff <kbd>⌘D</kbd></button>
+    </div>
+    <div class="tabs" data-group="res">
+      <button class="tab active" data-tab="rbody">Body</button>
+      <button class="tab" data-tab="rheaders">Headers</button>
+    </div>
+    <div id="large" class="notice" hidden>
+      <p id="large-text"></p>
+      <button id="show-large" class="ghost">Show anyway</button>
+    </div>
+    <pre id="output" class="output"></pre>
+  </section>
+
+  <footer class="statusbar">
+    <span id="config-path" class="muted">~/martis</span>
+    <div class="spacer"></div>
+    <span id="tests-result"></span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

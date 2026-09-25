@@ -7,7 +7,7 @@ UPSTREAM_BRANCH ?= main
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS=-s -w -X main.version=$(VERSION)
 
-.PHONY: all build release release-windows install uninstall update-upstream self-update run clean tidy fmt vet test help
+.PHONY: all build desktop desktop-run release release-windows install uninstall update-upstream self-update run clean tidy fmt vet test help
 
 all: build
 
@@ -16,6 +16,16 @@ build:
 	@echo "Building $(BINARY_NAME) ($(VERSION))..."
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) $(MAIN_PACKAGE)
 	@echo "Build complete: ./$(BINARY_NAME)"
+
+## desktop: Compile aplikasi desktop (window native via webview sistem, butuh CGO)
+desktop:
+	@echo "Building $(BINARY_NAME)-desktop ($(VERSION))..."
+	CGO_ENABLED=1 CGO_LDFLAGS="$(if $(filter Darwin,$(shell uname -s)),-framework UniformTypeIdentifiers)" go build -tags desktop,production -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-desktop ./cmd/martis-desktop
+	@echo "Build complete: ./$(BINARY_NAME)-desktop"
+
+## desktop-run: Build lalu buka aplikasi desktop
+desktop-run: desktop
+	./$(BINARY_NAME)-desktop
 
 ## release: Compile release untuk semua platform (macOS, Linux, dan Windows)
 release: clean
@@ -107,7 +117,7 @@ test:
 
 ## clean: Hapus binary dan direktori dist/
 clean:
-	@rm -rf $(BINARY_NAME) dist/
+	@rm -rf $(BINARY_NAME) $(BINARY_NAME)-desktop dist/
 	@echo "Cleaned up."
 
 ## help: Tampilkan daftar target make

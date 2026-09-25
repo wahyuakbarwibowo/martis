@@ -41,7 +41,7 @@ func TestInitialModel(t *testing.T) {
 	updatedModel, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	view := updatedModel.View()
 
-	if !strings.Contains(view, "MARTIS TUI") {
+	if !strings.Contains(view, "martis") {
 		t.Errorf("expected view to contain header, got: %s", view)
 	}
 }
