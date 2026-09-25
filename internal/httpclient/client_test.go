@@ -1,8 +1,11 @@
 package httpclient
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -42,5 +45,67 @@ func TestHttpClientDo(t *testing.T) {
 
 	if resp.Headers.Get("Content-Type") != "application/json" {
 		t.Errorf("expected Content-Type application/json, got %s", resp.Headers.Get("Content-Type"))
+	}
+}
+
+func TestMultipartFileUpload(t *testing.T) {
+	filePath := filepath.Join(t.TempDir(), "upload.txt")
+	if err := os.WriteFile(filePath, []byte("hello file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Errorf("parse multipart: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		file, header, err := r.FormFile("attachment")
+		if err != nil {
+			t.Errorf("form file: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		data, err := io.ReadAll(file)
+		if err != nil {
+			t.Errorf("read upload: %v", err)
+		}
+		if header.Filename != "upload.txt" || string(data) != "hello file" {
+			t.Errorf("unexpected uploaded file %q: %q", header.Filename, data)
+		}
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+	got := NewClient().Do(domain.RequestPayload{Method: "POST", URL: server.URL, BodyType: "form", FormKey: "attachment", FormPath: filePath})
+	if got.Err != nil {
+		t.Fatalf("upload failed: %v", got.Err)
+	}
+	if got.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d", got.StatusCode)
+	}
+}
+
+func TestOAuthClientCredentials(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, password, ok := r.BasicAuth()
+		if !ok || user != "client" || password != "secret" {
+			t.Errorf("unexpected client authentication")
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("parse token form: %v", err)
+		}
+		if r.Form.Get("grant_type") != "client_credentials" || r.Form.Get("scope") != "read" {
+			t.Errorf("unexpected token form: %v", r.Form)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"abc","token_type":"Bearer"}`))
+	}))
+	defer server.Close()
+	token, err := OAuthToken(domain.AuthConfig{TokenURL: server.URL, Username: "client", Password: "secret", Scope: "read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token != "abc" {
+		t.Fatalf("token = %q", token)
 	}
 }
