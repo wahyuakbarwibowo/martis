@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"martis/internal/importer"
 	"martis/internal/repository"
 )
 
@@ -15,6 +16,29 @@ func HandleCLIArgs(version string) bool {
 
 	cmd := os.Args[1]
 	switch cmd {
+	case "import":
+		if len(os.Args) < 3 {
+			fmt.Println("Penggunaan: martis import <postman.json|openapi.json>")
+			return true
+		}
+		incoming, err := importer.File(os.Args[2])
+		if err != nil {
+			fmt.Printf("Gagal mengimpor collection: %v\n", err)
+			return true
+		}
+		repo := repository.NewFileCollectionRepository()
+		current, err := repo.Load()
+		if err != nil {
+			fmt.Printf("Gagal memuat collections: %v\n", err)
+			return true
+		}
+		current.Folders = append(current.Folders, incoming.Folders...)
+		if err := repo.Save(current); err != nil {
+			fmt.Printf("Gagal menyimpan collections: %v\n", err)
+			return true
+		}
+		fmt.Printf("Berhasil mengimpor %d folder dari %s\n", len(incoming.Folders), os.Args[2])
+		return true
 	case "version", "-v", "--version":
 		fmt.Printf("martis %s\n", version)
 		return true
@@ -52,6 +76,7 @@ func HandleCLIArgs(version string) bool {
 		fmt.Println("Penggunaan:")
 		fmt.Println("  martis             Buka Terminal User Interface (dengan Mouse Click Tree View)")
 		fmt.Println("  martis collections Tampilkan daftar request di collection")
+		fmt.Println("  martis import <file> Impor Postman v2 atau OpenAPI 3")
 		fmt.Println("  martis version     Tampilkan versi aplikasi")
 		fmt.Println("  martis update      Perbarui aplikasi dari upstream")
 		fmt.Println("  martis help        Tampilkan bantuan ini")

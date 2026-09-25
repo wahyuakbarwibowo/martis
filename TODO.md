@@ -61,3 +61,6 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 - [x] Arch Linux AUR package (`PKGBUILD`).
 - [x] Scoop manifest untuk Windows (dibangkitkan GoReleaser saat rilis).
 - [x] Chocolatey package template untuk Windows.
+
+### 10. External Collection Import
+- [x] Import Postman v2 dan OpenAPI 3 melalui `martis import <file>`.

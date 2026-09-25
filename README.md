@@ -110,6 +110,7 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 ```bash
 martis             # Buka antarmuka TUI
 martis collections # Tampilkan daftar request di collection
+martis import api.json # Impor Postman v2 atau OpenAPI 3 ke collection
 martis version     # Tampilkan versi terpasang
 martis update      # Cek & perbarui aplikasi dari upstream
 martis help        # Tampilkan ringkasan bantuan
