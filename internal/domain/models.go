@@ -32,6 +32,9 @@ func SupportedMethods() []string {
 
 // RequestPayload merepresentasikan data request yang akan dikirim
 type RequestPayload struct {
+	Headers     []KeyValue
+	Auth        AuthConfig
+	Assertions  string
 	Method      string
 	URL         string
 	HeaderKey   string
@@ -57,17 +60,44 @@ type ResponseResult struct {
 
 // CollectionItem merepresentasikan item tersimpan dalam sebuah folder collection
 type CollectionItem struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Method     string `json:"method"`
-	URL        string `json:"url"`
-	HeaderKey  string `json:"header_key,omitempty"`
-	HeaderVal  string `json:"header_val,omitempty"`
-	HeaderAuth string `json:"header_auth,omitempty"`
-	BodyType   string `json:"body_type"` // "raw" atau "form"
-	BodyRaw    string `json:"body_raw,omitempty"`
-	FormKey    string `json:"form_key,omitempty"`
-	FormPath   string `json:"form_path,omitempty"`
+	Headers    []KeyValue `json:"headers,omitempty"`
+	Auth       AuthConfig `json:"auth,omitempty"`
+	Assertions string     `json:"assertions,omitempty"`
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Method     string     `json:"method"`
+	URL        string     `json:"url"`
+	HeaderKey  string     `json:"header_key,omitempty"`
+	HeaderVal  string     `json:"header_val,omitempty"`
+	HeaderAuth string     `json:"header_auth,omitempty"`
+	BodyType   string     `json:"body_type"` // "raw" atau "form"
+	BodyRaw    string     `json:"body_raw,omitempty"`
+	FormKey    string     `json:"form_key,omitempty"`
+	FormPath   string     `json:"form_path,omitempty"`
+}
+
+type KeyValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// OAuth helper supports the client-credentials grant.
+type AuthConfig struct {
+	Mode     string `json:"mode,omitempty"`
+	Token    string `json:"token,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	Key      string `json:"key,omitempty"`
+	Value    string `json:"value,omitempty"`
+	Location string `json:"location,omitempty"`
+	TokenURL string `json:"token_url,omitempty"`
+	Scope    string `json:"scope,omitempty"`
+}
+
+type HistoryEntry struct {
+	At      time.Time      `json:"at"`
+	Request CollectionItem `json:"request"`
+	Status  int            `json:"status"`
 }
 
 // Folder merepresentasikan sebuah grup dalam collection

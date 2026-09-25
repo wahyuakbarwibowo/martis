@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +38,13 @@ func NewClient(userAgent ...string) Client {
 func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseResult {
 	startTime := time.Now()
 
+	if payload.Auth.Mode == "oauth2" && payload.Auth.Token == "" {
+		token, err := OAuthToken(payload.Auth)
+		if err != nil {
+			return domain.ResponseResult{Err: err, Duration: time.Since(startTime)}
+		}
+		payload.HeaderAuth = "Bearer " + token
+	}
 	targetURL := strings.TrimSpace(payload.URL)
 	if targetURL == "" {
 		targetURL = "https://httpbin.org/anything"
@@ -103,9 +111,15 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 	}
 
 	// Apply Headers
+	for _, row := range payload.Headers {
+		if row.Key != "" {
+			req.Header.Add(row.Key, row.Value)
+		}
+	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
-	} else if payload.HeaderKey != "" && payload.HeaderVal != "" {
+	}
+	if payload.HeaderKey != "" {
 		req.Header.Set(payload.HeaderKey, payload.HeaderVal)
 	}
 	if payload.HeaderAuth != "" {
@@ -141,6 +155,7 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 		}
 	}
 
+	duration = time.Since(startTime)
 	// Pretty format JSON if valid
 	bodyStr := string(respBytes)
 	var prettyJSON bytes.Buffer
@@ -156,4 +171,45 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 		Headers:    resp.Header,
 		Body:       bodyStr,
 	}
+}
+
+// OAuthToken obtains an access token using OAuth 2.0 client credentials.
+func OAuthToken(auth domain.AuthConfig) (string, error) {
+	u, err := url.Parse(auth.TokenURL)
+	if err != nil || u.Host == "" || (u.Scheme != "https" && !(u.Scheme == "http" && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1"))) {
+		return "", fmt.Errorf("token URL must use HTTPS (HTTP allowed on localhost)")
+	}
+	values := url.Values{"grant_type": {"client_credentials"}}
+	if auth.Scope != "" {
+		values.Set("scope", auth.Scope)
+	}
+	req, err := http.NewRequest("POST", u.String(), strings.NewReader(values.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.SetBasicAuth(auth.Username, auth.Password)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	client := &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("token endpoint returned HTTP %d", resp.StatusCode)
+	}
+	var token struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&token); err != nil {
+		return "", fmt.Errorf("invalid token response: %w", err)
+	}
+	if token.AccessToken == "" {
+		return "", fmt.Errorf("token endpoint returned no access_token")
+	}
+	if token.TokenType != "" && !strings.EqualFold(token.TokenType, "bearer") {
+		return "", fmt.Errorf("unsupported token type")
+	}
+	return token.AccessToken, nil
 }
