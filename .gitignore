@@ -1,0 +1,20 @@
+# Binaries
+martis
+martis-tui
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Release folder
+dist/
+
+# Test binary & coverage
+*.test
+*.out
+
+# OS & IDE
+.DS_Store
+.vscode/
+.idea/
