@@ -17,14 +17,3 @@ archives:
 
 checksum:
   name_template: checksums.txt
-
-brews:
-  - name: martis
-    repository:
-      owner: wahyuakbarwibowo
-      name: homebrew-tap
-      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/wahyuakbarwibowo/martis
-    description: Terminal REST client
-    license: MIT
-    test: system "#{bin}/martis", "version"

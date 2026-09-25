@@ -51,10 +51,6 @@ curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/instal
 Release binaries are also distributed through package managers; Go is not required.
 
 ```bash
-# Homebrew (macOS/Linux)
-brew tap wahyuakbarwibowo/tap
-brew install martis
-
 # Arch Linux (AUR)
 yay -S martis
 ```

@@ -57,9 +57,7 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 - [x] Performance benchmark runner (mengirim N request berturut-turut untuk mengukur rata-rata latency).
 
 ### 9. Package Manager Distribution
-- [x] Homebrew tap formula untuk macOS (`brew install wahyuakbarwibowo/tap/martis`).
 - [x] Arch Linux AUR package (`PKGBUILD`).
-- [ ] Scoop manifest untuk Windows (ditunda, fokus ke sistem Unix).
 - [x] Chocolatey package template untuk Windows.
 
 ### 10. External Collection Import
