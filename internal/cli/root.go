@@ -137,6 +137,8 @@ func HandleCLIArgs(version string) bool {
 		fmt.Println("  martis import <file> Impor Postman v2, OpenAPI 3, atau environment Postman")
 		fmt.Println("  martis run [--env <nama>] <folder>  Jalankan semua request di folder (exit 1 jika ada yang gagal)")
 		fmt.Println("  martis version     Tampilkan versi aplikasi")
+		fmt.Println("")
+		fmt.Println("Aplikasi desktop: jalankan 'martis-desktop' (pasang dengan MARTIS_DESKTOP=1 pada install.sh)")
 		fmt.Println("  martis update      Perbarui aplikasi dari upstream")
 		fmt.Println("  martis help        Tampilkan bantuan ini")
 		return true
