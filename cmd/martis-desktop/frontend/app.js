@@ -1,0 +1,294 @@
+"use strict";
+
+const api = window.go.main.App;
+const $ = (id) => document.getElementById(id);
+const LARGE = 1 << 20;     // ask before rendering bodies over 1 MB
+const HIGHLIGHT = 200_000; // skip syntax colouring above this size
+
+const state = {
+  col: { name: "Collections", folders: [] },
+  sel: null,       // { f, i } of the loaded collection item
+  open: new Set(), // expanded folder ids
+  last: null,      // latest response
+  prev: null,      // previous successful response body
+  diff: false,
+  showLarge: false,
+  resTab: "rbody",
+};
+
+// ---------- collections ----------
+
+async function loadCollections() {
+  state.col = (await api.Collections()) || { name: "Collections", folders: [] };
+  state.col.folders ||= [];
+  state.col.folders.forEach((f) => f.is_expanded && state.open.add(f.id));
+  renderTree();
+}
+
+function renderTree() {
+  const q = $("tree-filter").value.trim().toLowerCase();
+  const tree = $("tree");
+  tree.textContent = "";
+  state.col.folders.forEach((folder, f) => {
+    const items = (folder.items || []).map((it, i) => ({ it, i }))
+      .filter(({ it }) => !q || `${it.name} ${it.url}`.toLowerCase().includes(q));
+    if (q && !items.length) return;
+    const open = q || state.open.has(folder.id);
+    const row = el("div", "folder", [el("span", "chev", [open ? "▾" : "▸"]), el("span", "name", [folder.name])]);
+    row.onclick = () => { state.open.has(folder.id) ? state.open.delete(folder.id) : state.open.add(folder.id); renderTree(); };
+    tree.append(row);
+    if (!open) return;
+    for (const { it, i } of items) {
+      const item = el("div", "item", [el("span", `verb ${it.method}`, [it.method]), el("span", "name", [it.name])]);
+      if (state.sel && state.sel.f === f && state.sel.i === i) item.classList.add("selected");
+      item.onclick = () => loadItem(f, i);
+      tree.append(item);
+    }
+  });
+}
+
+function loadItem(f, i) {
+  const it = state.col.folders[f].items[i];
+  state.sel = { f, i };
+  $("method").value = it.method || "GET";
+  $("url").value = it.url || "";
+  $("name").value = it.name || "";
+  $("body").value = it.body_raw || "";
+  $("tests").value = it.assertions || "";
+  // Fold the legacy single-header fields into the header list.
+  const lines = [];
+  if (it.header_key) lines.push(`${it.header_key}: ${it.header_val || ""}`);
+  if (it.header_auth) lines.push(`Authorization: ${it.header_auth}`);
+  for (const h of it.headers || []) lines.push(`${h.key}: ${h.value}`);
+  $("headers").value = lines.join("\n");
+  $("crumb").textContent = `${state.col.folders[f].name} / ${it.name}`;
+  renderTree();
+}
+
+function newRequest() {
+  state.sel = null;
+  for (const id of ["url", "name", "body", "headers", "tests"]) $(id).value = "";
+  $("method").value = "GET";
+  $("crumb").textContent = "Untitled request";
+  renderTree();
+  $("url").focus();
+}
+
+function parseHeaders() {
+  return $("headers").value.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+    const at = l.indexOf(":");
+    return at < 0 ? { key: l, value: "" } : { key: l.slice(0, at).trim(), value: l.slice(at + 1).trim() };
+  });
+}
+
+async function save() {
+  const edited = {
+    method: $("method").value, url: $("url").value.trim(), headers: parseHeaders(),
+    body_raw: $("body").value, assertions: $("tests").value,
+    header_key: "", header_val: "", header_auth: "", body_type: "raw",
+  };
+  edited.name = $("name").value.trim() || `${edited.method} ${edited.url.split("?")[0].split("/").pop() || "request"}`;
+  if (state.sel) {
+    const items = state.col.folders[state.sel.f].items;
+    items[state.sel.i] = { ...items[state.sel.i], ...edited }; // keep fields the desktop does not edit
+  } else {
+    if (!state.col.folders.length) state.col.folders.push({ id: `f${Date.now()}`, name: "Requests", is_expanded: true, items: [] });
+    const folder = state.col.folders[0];
+    folder.items ||= [];
+    folder.items.push({ id: `r${Date.now()}`, ...edited });
+    state.sel = { f: 0, i: folder.items.length - 1 };
+    state.open.add(folder.id);
+  }
+  try {
+    await api.SaveCollections(state.col);
+    $("name").value = edited.name;
+    $("crumb").textContent = `${state.col.folders[state.sel.f].name} / ${edited.name}`;
+    flash("Saved");
+  } catch (e) {
+    flash(`Save failed: ${e}`, true);
+  }
+  renderTree();
+}
+
+// ---------- request / response ----------
+
+async function send() {
+  const btn = $("send");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.firstChild.textContent = "Sending ";
+  const payload = {
+    Method: $("method").value, URL: $("url").value.trim(), Headers: parseHeaders(),
+    BodyType: "raw", BodyRaw: $("body").value, Assertions: $("tests").value,
+  };
+  const res = await api.Send(payload, $("env").value);
+  btn.disabled = false;
+  btn.firstChild.textContent = "Send ";
+  if (!res.error && state.last && !state.last.error) state.prev = state.last.body;
+  state.last = res;
+  state.diff = false;
+  state.showLarge = false;
+  $("diff").classList.remove("on");
+  renderResponse();
+}
+
+function renderResponse() {
+  const r = state.last;
+  const status = $("status");
+  if (!r) return;
+  if (r.error) {
+    status.textContent = "Request failed";
+    status.className = "status err";
+    $("meta").textContent = "";
+  } else {
+    status.textContent = `${r.status} ${r.statusText}`;
+    status.className = `status ${r.status < 300 ? "ok" : r.status < 400 ? "warn" : "err"}`;
+    $("meta").textContent = `${r.durationMs} ms · ${formatBytes(r.size)}`;
+  }
+  renderTests(r);
+  renderOutput();
+}
+
+async function renderOutput() {
+  const r = state.last;
+  const out = $("output");
+  $("large").hidden = true;
+  if (!r) return;
+  if (r.error) { out.textContent = r.error; return; }
+  if (state.resTab === "rheaders") {
+    out.textContent = Object.keys(r.headers).sort().map((k) => `${k}: ${r.headers[k]}`).join("\n");
+    return;
+  }
+  if (state.diff && state.prev != null) {
+    const diff = await api.Diff(state.prev, r.body);
+    out.innerHTML = diff.split("\n").map((l) =>
+      l.startsWith("+ ") ? `<span class="add">${esc(l)}</span>` : l.startsWith("- ") ? `<span class="del">${esc(l)}</span>` : esc(l) + "\n").join("");
+    return;
+  }
+  const filter = $("filter").value.trim();
+  if (filter.startsWith("json.")) {
+    const [value, ok] = await api.JSONPath(r.body, filter);
+    out.innerHTML = ok ? highlight(value) : esc(`No value at ${filter}`);
+    return;
+  }
+  if (filter) {
+    const q = filter.toLowerCase();
+    out.textContent = r.body.split("\n").filter((l) => l.toLowerCase().includes(q)).join("\n");
+    return;
+  }
+  if (r.size > LARGE && !state.showLarge) {
+    $("large-text").textContent = `This response is ${formatBytes(r.size)}. Rendering it may slow the window; filter with json.path or show it anyway.`;
+    $("large").hidden = false;
+    out.textContent = "";
+    return;
+  }
+  out.innerHTML = highlight(pretty(r.body));
+}
+
+function renderTests(r) {
+  const el = $("tests-result");
+  el.className = "";
+  el.textContent = "";
+  if (r.error || !$("tests").value.trim()) return;
+  const parts = [];
+  if (r.captured && r.captured.length) parts.push(`captured ${r.captured.join(", ")}`);
+  if (r.failures && r.failures.length) {
+    el.className = "pill err";
+    el.title = r.failures.join("\n");
+    el.textContent = `${r.failures.length} failed` + (parts.length ? ` · ${parts.join(" · ")}` : "");
+  } else {
+    el.className = "pill ok";
+    el.textContent = ["tests passed", ...parts].join(" · ");
+  }
+}
+
+// ---------- helpers ----------
+
+function el(tag, cls, children) {
+  const n = document.createElement(tag);
+  n.className = cls;
+  n.append(...children);
+  return n;
+}
+
+function esc(s) {
+  return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+}
+
+function pretty(body) {
+  if (body.length > LARGE) return body;
+  try { return JSON.stringify(JSON.parse(body), null, 2); } catch { return body; }
+}
+
+function highlight(text) {
+  const safe = esc(text);
+  if (text.length > HIGHLIGHT) return safe;
+  return safe.replace(/("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g,
+    (m, str, colon, lit) => str ? (colon ? `<span class="k">${str}</span>${colon}` : `<span class="s">${str}</span>`)
+      : lit ? `<span class="b">${m}</span>` : `<span class="n">${m}</span>`);
+}
+
+function formatBytes(n) {
+  return n < 1024 ? `${n} B` : n < LARGE ? `${(n / 1024).toFixed(1)} KB` : `${(n / LARGE).toFixed(1)} MB`;
+}
+
+let flashTimer;
+function flash(text, isError) {
+  const el = $("config-path");
+  el.textContent = text;
+  el.style.color = isError ? "var(--err)" : "";
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { el.textContent = "~/martis"; el.style.color = ""; }, 2000);
+}
+
+function bindTabs(group, onChange) {
+  const bar = document.querySelector(`.tabs[data-group="${group}"]`);
+  bar.addEventListener("click", (e) => {
+    const tab = e.target.closest(".tab");
+    if (!tab) return;
+    bar.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === tab));
+    onChange(tab.dataset.tab);
+  });
+}
+
+// ---------- wiring ----------
+
+bindTabs("req", (name) => document.querySelectorAll(".request .pane").forEach((p) => { p.hidden = p.dataset.pane !== name; }));
+bindTabs("res", (name) => { state.resTab = name; renderOutput(); });
+$("send").onclick = send;
+$("save").onclick = save;
+$("new-request").onclick = newRequest;
+$("tree-filter").oninput = renderTree;
+$("show-large").onclick = () => { state.showLarge = true; renderOutput(); };
+$("url").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+let filterTimer;
+$("filter").oninput = () => { clearTimeout(filterTimer); filterTimer = setTimeout(renderOutput, 150); };
+$("diff").onclick = () => {
+  if (state.prev == null) return flash("No previous response to diff yet");
+  state.diff = !state.diff;
+  $("diff").classList.toggle("on", state.diff);
+  renderOutput();
+};
+
+document.addEventListener("keydown", (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (!mod) return;
+  const key = e.key.toLowerCase();
+  if (key === "enter") { e.preventDefault(); send(); }
+  else if (key === "s") { e.preventDefault(); save(); }
+  else if (key === "d") { e.preventDefault(); $("diff").click(); }
+  else if (key === "f") { e.preventDefault(); $("filter").focus(); }
+  else if (key === "n") { e.preventDefault(); newRequest(); }
+});
+
+// Tab inserts two spaces in editors instead of moving focus.
+document.querySelectorAll(".editor").forEach((t) => t.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  e.preventDefault();
+  t.setRangeText("  ", t.selectionStart, t.selectionEnd, "end");
+}));
+
+(async () => {
+  for (const name of await api.Environments()) $("env").append(new Option(name, name));
+  await loadCollections();
+})();
