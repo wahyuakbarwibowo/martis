@@ -25,6 +25,12 @@ func main() {
 	repo := repository.NewFileCollectionRepository()
 	client := httpclient.NewClient("Martis-TUI-Client/" + version)
 	model := ui.NewModel(repo, client)
+	if raw := cli.InitialCurl(os.Args[1:]); raw != "" {
+		if err := model.ImportCurl(raw); err != nil {
+			fmt.Fprintf(os.Stderr, "Gagal membaca request: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
 	// 3. Start Bubble Tea TUI program with mouse & alt screen support
 	p := tea.NewProgram(
