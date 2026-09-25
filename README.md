@@ -66,7 +66,7 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 | `Ctrl+E` | **Simpan request aktif ke Collection** |
 | `Ctrl+T` | Ganti tab konfigurasi request (*Headers* / *Raw JSON* / *Form-Data*) |
 | `Ctrl+I` | Impor cURL dari clipboard; jika clipboard kosong, buka editor impor |
-| `Ctrl+F` | Pilih file lokal saat tab Form-Data aktif |
+| `Ctrl+F` | Buka Finder untuk memilih file lokal saat tab Form-Data aktif |
 | `Ctrl+X` | Ekspor request aktif sebagai perintah cURL ke clipboard |
 | `Ctrl+H` | Pilih request dari history |
 | `Ctrl+G` | Pilih file environment `.env` |
@@ -97,7 +97,7 @@ martis help        # Tampilkan ringkasan bantuan
 ---
 
 ## 🗺️ Roadmap & Kontribusi
-Impor cURL mendukung method, URL, headers, autentikasi dasar, body, dan satu file form-data (termasuk atribut MIME seperti `;type=image/png`). Pada tab Form-Data, tekan `Ctrl+F` atau klik field path untuk memilih file lokal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body. Kontribusi dan pull request selalu disambut dengan baik!
+Impor cURL mendukung method, URL, headers, autentikasi dasar, body, dan satu file form-data (termasuk atribut MIME seperti `;type=image/png`). Pada macOS, tekan `Ctrl+F` atau klik field path untuk membuka Finder dan memilih file lokal; platform lain memakai picker internal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body. Kontribusi dan pull request selalu disambut dengan baik!
 
 ---
 

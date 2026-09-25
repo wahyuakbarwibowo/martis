@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"runtime"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,6 +43,9 @@ func TestMouseClickTogglesFolderAtRenderedRow(t *testing.T) {
 }
 
 func TestMouseClickOpensFormFilePicker(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("macOS uses the native Finder picker")
+	}
 	m := NewModel(&testCollectionRepo{collection: &domain.Collection{}}, testHTTPClient{})
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = updated.(Model)
@@ -56,15 +60,14 @@ func TestMouseClickOpensFormFilePicker(t *testing.T) {
 func TestFormFilePickerLoadsSelectedFile(t *testing.T) {
 	m := NewModel(&testCollectionRepo{collection: &domain.Collection{}}, testHTTPClient{})
 	m.tab = TabBodyForm
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlF})
-	m = updated.(Model)
+	m.openFilePicker()
 	if m.modal != modalFilePicker {
 		t.Fatal("Ctrl+F should open the form-data file picker")
 	}
 	if len(m.fileCandidates) == 0 {
 		t.Skip("repository has no regular files")
 	}
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = updated.(Model)
 	if m.modal != modalNone || m.formFilePath.Value() == "" || m.tab != TabBodyForm {
 		t.Fatalf("picker should load selected path: modal=%v path=%q tab=%v", m.modal, m.formFilePath.Value(), m.tab)

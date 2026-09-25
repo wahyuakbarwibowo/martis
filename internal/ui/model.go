@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -122,6 +124,34 @@ type treeRow struct {
 	name        string
 	method      string
 	isExpanded  bool
+}
+
+type filePickerResultMsg struct {
+	path string
+	err  error
+}
+
+func nativeFilePickerCmd() tea.Msg {
+	if runtime.GOOS != "darwin" {
+		return filePickerResultMsg{err: fmt.Errorf("native picker unavailable")}
+	}
+	// macOS presents the standard Finder-backed file chooser. The user can
+	// browse folders, preview files, and select any readable local file.
+	script := `try
+set pickedFile to choose file with prompt "Choose form-data file"
+return POSIX path of pickedFile
+on error number -128
+error "user canceled"
+end try`
+	out, err := osexec.Command("osascript", "-e", script).CombinedOutput()
+	if err != nil {
+		return filePickerResultMsg{err: fmt.Errorf("%s", strings.TrimSpace(string(out)))}
+	}
+	path := strings.TrimSpace(string(out))
+	if path == "" {
+		return filePickerResultMsg{err: fmt.Errorf("user canceled")}
+	}
+	return filePickerResultMsg{path: path}
 }
 
 type Model struct {
@@ -1076,6 +1106,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.formFocusIndex = 0
 					} else if msg.Y <= 11 {
 						m.formFocusIndex = 1
+						if runtime.GOOS == "darwin" {
+							return m, nativeFilePickerCmd
+						}
 						m.openFilePicker()
 						return m, nil
 					}
@@ -1135,6 +1168,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.status = fmt.Sprintf("Benchmark %d requests: avg %s, min %s, max %s, failed %d", msg.result.Count, msg.result.Average.Round(time.Millisecond), msg.result.Min.Round(time.Millisecond), msg.result.Max.Round(time.Millisecond), msg.result.Failed)
 		}
+	case filePickerResultMsg:
+		if msg.err != nil {
+			if msg.err.Error() != "user canceled" {
+				m.status = "file picker: " + msg.err.Error()
+			}
+			return m, nil
+		}
+		m.formFilePath.SetValue(msg.path)
+		m.tab = TabBodyForm
+		m.focus = FocusConfig
+		m.formFocusIndex = 1
+		m.updateFocusStates()
+		m.status = "Selected file: " + filepath.Base(msg.path)
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.modal != modalNone {
@@ -1199,6 +1246,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "ctrl+f":
 			if m.tab == TabBodyForm {
+				if runtime.GOOS == "darwin" {
+					return m, nativeFilePickerCmd
+				}
 				m.openFilePicker()
 			}
 			return m, nil
