@@ -78,13 +78,19 @@ place mv "${TMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
 DESKTOP_NOTE=""
 if [ "${MARTIS_DESKTOP:-0}" = "1" ]; then
     if [ "${OS}" = darwin ]; then
-        # Martis.app di ~/Applications agar muncul di Spotlight, Launchpad, dan Dock.
+        # /Applications selalu diindeks Spotlight; ~/Applications tidak selalu.
         APP_ARCHIVE="Martis_${VERSION#v}_${ARCH}.app.tar.gz"
         fetch "${APP_ARCHIVE}" "${APP_ARCHIVE}.sha256"
-        APPS_DIR="${HOME}/Applications"
-        mkdir -p "${APPS_DIR}"
+        APPS_DIR="/Applications"
+        if [ ! -w "${APPS_DIR}" ]; then
+            APPS_DIR="${HOME}/Applications"
+            mkdir -p "${APPS_DIR}"
+        elif [ -d "${HOME}/Applications/Martis.app" ]; then
+            rm -rf "${HOME}/Applications/Martis.app" # salinan lama dari versi installer sebelumnya
+        fi
         rm -rf "${APPS_DIR}/Martis.app"
         tar -xzf "${TMP_DIR}/${APP_ARCHIVE}" -C "${APPS_DIR}"
+        mdimport "${APPS_DIR}/Martis.app" 2>/dev/null || true
         echo "📦 Memasang Martis.app ke ${APPS_DIR}..."
         place "ln -sf" "${APPS_DIR}/Martis.app/Contents/MacOS/martis-desktop" "${INSTALL_DIR}/martis-desktop"
         DESKTOP_NOTE="Martis.app ada di ${APPS_DIR} (cari \"Martis\" di Spotlight)"
