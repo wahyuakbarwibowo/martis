@@ -31,10 +31,10 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 12, G: 12, B: 13, A: 255},
 		AssetServer:      &assetserver.Options{Assets: assets},
 		Bind:             []any{app},
-		Linux: &linux.Options{Icon: icon, ProgramName: "martis"},
+		Linux:            &linux.Options{Icon: icon, ProgramName: "martis"},
 		Mac: &mac.Options{
-			TitleBar:             mac.TitleBarHiddenInset(),
-			About:                &mac.AboutInfo{Title: "Martis", Message: "Lightweight REST client\n" + version, Icon: icon},
+			TitleBar: mac.TitleBarHiddenInset(),
+			About:    &mac.AboutInfo{Title: "Martis", Message: "Lightweight REST client\n" + version, Icon: icon},
 		},
 	})
 	if err != nil {
