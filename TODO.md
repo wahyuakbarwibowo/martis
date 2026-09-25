@@ -64,3 +64,12 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 
 ### 10. External Collection Import
 - [x] Import Postman v2 dan OpenAPI 3 melalui `martis import <file>`.
+- [x] Import environment Postman ke `~/martis/environments/*.env`.
+
+### 11. Workflow & Response Tools (v0.4.0)
+- [x] Simpan nilai response ke variabel environment (`set token = json.access_token`).
+- [x] Collection runner CLI: `martis run [--env <nama>] <folder>` untuk CI.
+- [x] Buka TUI langsung dengan `martis <url>` atau `martis curl ...`.
+- [x] Filter response dengan JSON path (`json.data.0.id`).
+- [x] Diff response dengan response sebelumnya (`Ctrl+D`).
+- [x] Konfirmasi sebelum menampilkan response > 1 MB.

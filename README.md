@@ -91,7 +91,8 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 | `Ctrl+G` | Pilih file environment `.env` |
 | `F2` | Pilih tema |
 | `F3` | Pilih preset autentikasi |
-| `/` | Cari teks di response |
+| `/` | Cari teks di response, atau filter JSON dengan `json.data.0.id` |
+| `Ctrl+D` | Bandingkan (diff) response saat ini dengan response sebelumnya |
 | `Ctrl+Y` / `Ctrl+O` | Salin response / simpan ke file |
 | `Ctrl+B` | Jalankan benchmark request |
 | `Ctrl+S` | Kirim HTTP Request |
@@ -110,7 +111,10 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 ```bash
 martis             # Buka antarmuka TUI
 martis collections # Tampilkan daftar request di collection
-martis import api.json # Impor Postman v2 atau OpenAPI 3 ke collection
+martis import api.json # Impor Postman v2, OpenAPI 3, atau environment Postman
+martis run --env prod Auth   # Jalankan semua request di folder "Auth" (exit 1 jika ada yang gagal, cocok untuk CI)
+martis https://api.test/users  # Buka TUI dengan URL tersebut
+martis curl -H 'X-A: b' https://api.test  # Buka TUI dengan request dari perintah cURL
 martis version     # Tampilkan versi terpasang
 martis update      # Cek & perbarui aplikasi dari upstream
 martis help        # Tampilkan ringkasan bantuan
@@ -119,7 +123,19 @@ martis help        # Tampilkan ringkasan bantuan
 ---
 
 ## 🗺️ Roadmap & Kontribusi
-Pada tab Form-Data, isi satu baris per field (`name=value`) atau file (`@avatar=/path/to/avatar.png`). Impor cURL mendukung method, URL, headers, autentikasi dasar, body file (`--data-binary @file`), dan banyak field form-data/file (termasuk atribut MIME seperti `;type=image/png`). Pada macOS, tekan `Ctrl+F` atau klik editor file untuk membuka Finder dan memilih file lokal; platform lain memakai picker internal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body. Kontribusi dan pull request selalu disambut dengan baik!
+Pada tab Form-Data, isi satu baris per field (`name=value`) atau file (`@avatar=/path/to/avatar.png`). Impor cURL mendukung method, URL, headers, autentikasi dasar, body file (`--data-binary @file`), dan banyak field form-data/file (termasuk atribut MIME seperti `;type=image/png`). Pada macOS, tekan `Ctrl+F` atau klik editor file untuk membuka Finder dan memilih file lokal; platform lain memakai picker internal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body.
+
+Tab Assertions menerima satu baris per aturan:
+
+```text
+Status == 200
+json.data.id != nil
+set token = json.access_token
+```
+
+Baris `set` menyimpan nilai dari response ke environment aktif, sehingga request berikutnya bisa memakai `{{token}}` (juga berlaku saat `martis run`). Response di atas 1 MB tidak langsung ditampilkan: tekan `Enter` di panel response untuk tetap menampilkan, `/` untuk filter, atau `Ctrl+O` untuk menyimpan ke file.
+
+Kontribusi dan pull request selalu disambut dengan baik!
 
 ---
 
