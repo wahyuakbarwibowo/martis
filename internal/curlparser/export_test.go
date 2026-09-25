@@ -2,6 +2,8 @@ package curlparser
 
 import (
 	"martis/internal/domain"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -38,5 +40,24 @@ func TestParseMultipartFileAttributes(t *testing.T) {
 	}
 	if got.FormKey != "avatar" || got.FormPath != "./photo.png" || got.Method != "POST" {
 		t.Fatalf("unexpected multipart parse: %#v", got)
+	}
+}
+
+func TestParseAndExportMultipartFieldsAndBodyFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "payload.json")
+	if err := os.WriteFile(path, []byte(`{"ok":true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := Parse("curl -F name=martis -F avatar=@" + path + " --data-binary @" + path + " https://api.test/upload")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.FormFields["name"] != "martis" || parsed.FormFiles["avatar"] != path || parsed.BodyFile != path {
+		t.Fatalf("unexpected parsed request: %#v", parsed)
+	}
+	cmd := Export(domain.RequestPayload{Method: "POST", URL: "https://api.test/upload", BodyFile: path})
+	if !strings.Contains(cmd, "--data-binary") || !strings.Contains(cmd, "@"+path) {
+		t.Fatalf("missing body file export: %s", cmd)
 	}
 }

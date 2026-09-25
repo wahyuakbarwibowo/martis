@@ -3,6 +3,7 @@ package curlparser
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
 	"strings"
 	"unicode"
 )
@@ -13,9 +14,12 @@ type ParsedCurl struct {
 	URL        string
 	Headers    map[string]string
 	Body       string
+	BodyFile   string
 	AuthHeader string
 	FormKey    string
 	FormPath   string
+	FormFields map[string]string
+	FormFiles  map[string]string
 }
 
 // Parse mengurai string perintah cURL menjadi struct ParsedCurl.
@@ -35,8 +39,10 @@ func Parse(raw string) (ParsedCurl, error) {
 	}
 
 	result := ParsedCurl{
-		Method:  "GET",
-		Headers: make(map[string]string),
+		Method:     "GET",
+		Headers:    make(map[string]string),
+		FormFields: make(map[string]string),
+		FormFiles:  make(map[string]string),
 	}
 
 	explicitMethod := false
@@ -78,9 +84,15 @@ func Parse(raw string) (ParsedCurl, error) {
 			if i+1 < len(tokens) {
 				i++
 				if tok != "--data-raw" && strings.HasPrefix(tokens[i], "@") {
-					return ParsedCurl{}, fmt.Errorf("file body import is unsupported; paste the body with --data-raw")
+					path := strings.TrimPrefix(tokens[i], "@")
+					if _, err := os.Stat(path); err != nil {
+						return ParsedCurl{}, fmt.Errorf("body file %q: %w", path, err)
+					}
+					result.BodyFile = path
+					result.Body = ""
+				} else {
+					result.Body = tokens[i]
 				}
-				result.Body = tokens[i]
 				if !explicitMethod {
 					result.Method = "POST"
 				}
@@ -94,23 +106,30 @@ func Parse(raw string) (ParsedCurl, error) {
 
 		case "-F", "--form":
 			i++
-			key, value, ok := strings.Cut(tokens[i], "=@")
+			key, value, ok := strings.Cut(tokens[i], "=")
 			if !ok || strings.TrimSpace(key) == "" || value == "" {
-				return ParsedCurl{}, fmt.Errorf("only file multipart fields are supported")
+				return ParsedCurl{}, fmt.Errorf("invalid multipart field")
 			}
-			// cURL permits attributes after the path, for example
-			// `-F 'avatar=@photo.png;type=image/png'`.
-			if path, _, found := strings.Cut(value, ";"); found {
-				value = path
+			key = strings.TrimSpace(key)
+			if strings.HasPrefix(value, "@") {
+				value = strings.TrimPrefix(value, "@")
+				if path, _, found := strings.Cut(value, ";"); found {
+					value = path
+				}
+				value = strings.TrimSpace(value)
+				if value == "" {
+					return ParsedCurl{}, fmt.Errorf("multipart file path is empty")
+				}
+				result.FormFiles[key] = value
+				if result.FormKey == "" {
+					result.FormKey, result.FormPath = key, value
+				}
+			} else {
+				if idx := strings.IndexByte(value, ';'); idx >= 0 {
+					value = value[:idx]
+				}
+				result.FormFields[key] = value
 			}
-			value = strings.TrimSpace(value)
-			if value == "" {
-				return ParsedCurl{}, fmt.Errorf("multipart file path is empty")
-			}
-			if result.FormKey != "" {
-				return ParsedCurl{}, fmt.Errorf("only one multipart file is supported")
-			}
-			result.FormKey, result.FormPath = key, value
 			if !explicitMethod {
 				result.Method = "POST"
 			}

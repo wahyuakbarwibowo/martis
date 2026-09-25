@@ -97,7 +97,7 @@ martis help        # Tampilkan ringkasan bantuan
 ---
 
 ## 🗺️ Roadmap & Kontribusi
-Impor cURL mendukung method, URL, headers, autentikasi dasar, body, dan satu file form-data (termasuk atribut MIME seperti `;type=image/png`). Pada macOS, tekan `Ctrl+F` atau klik field path untuk membuka Finder dan memilih file lokal; platform lain memakai picker internal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body. Kontribusi dan pull request selalu disambut dengan baik!
+Impor cURL mendukung method, URL, headers, autentikasi dasar, body file (`--data-binary @file`), dan banyak field form-data/file (termasuk atribut MIME seperti `;type=image/png`). Pada macOS, tekan `Ctrl+F` atau klik field path untuk membuka Finder dan memilih file lokal; platform lain memakai picker internal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body. Kontribusi dan pull request selalu disambut dengan baik!
 
 ---
 

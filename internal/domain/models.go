@@ -42,8 +42,11 @@ type RequestPayload struct {
 	HeaderAuth  string
 	BodyType    string // "raw" atau "form"
 	BodyRaw     string
+	BodyFile    string
 	FormKey     string
 	FormPath    string
+	FormFields  []KeyValue
+	FormFiles   []KeyValue
 	TimeoutSecs time.Duration
 }
 
@@ -72,8 +75,11 @@ type CollectionItem struct {
 	HeaderAuth string     `json:"header_auth,omitempty"`
 	BodyType   string     `json:"body_type"` // "raw" atau "form"
 	BodyRaw    string     `json:"body_raw,omitempty"`
+	BodyFile   string     `json:"body_file,omitempty"`
 	FormKey    string     `json:"form_key,omitempty"`
 	FormPath   string     `json:"form_path,omitempty"`
+	FormFields []KeyValue `json:"form_fields,omitempty"`
+	FormFiles  []KeyValue `json:"form_files,omitempty"`
 }
 
 type KeyValue struct {

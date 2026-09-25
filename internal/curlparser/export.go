@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"martis/internal/domain"
 	"net/url"
+	"sort"
 	"strings"
 )
 
@@ -44,8 +45,20 @@ func Export(p domain.RequestPayload) string {
 	if p.HeaderAuth != "" {
 		parts = append(parts, "-H", quote("Authorization: "+p.HeaderAuth))
 	}
-	if p.BodyType == "form" && p.FormPath != "" {
-		parts = append(parts, "-F", quote(p.FormKey+"=@"+p.FormPath))
+	if p.BodyType == "form" {
+		files := append([]domain.KeyValue(nil), p.FormFiles...)
+		if p.FormPath != "" {
+			files = append(files, domain.KeyValue{Key: p.FormKey, Value: p.FormPath})
+		}
+		sort.Slice(files, func(i, j int) bool { return files[i].Key < files[j].Key })
+		for _, field := range p.FormFields {
+			parts = append(parts, "-F", quote(field.Key+"="+field.Value))
+		}
+		for _, field := range files {
+			parts = append(parts, "-F", quote(field.Key+"=@"+field.Value))
+		}
+	} else if p.BodyFile != "" && method != "GET" && method != "HEAD" {
+		parts = append(parts, "--data-binary", quote("@"+p.BodyFile))
 	} else if p.BodyRaw != "" && method != "GET" && method != "HEAD" {
 		parts = append(parts, "--data-raw", quote(p.BodyRaw))
 	}

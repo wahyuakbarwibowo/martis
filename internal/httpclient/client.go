@@ -63,36 +63,45 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 
 	if method != "GET" && method != "HEAD" {
 		if payload.BodyType == "raw" {
-			reqBody = bytes.NewBufferString(payload.BodyRaw)
-		} else if payload.BodyType == "form" && payload.FormPath != "" {
+			if payload.BodyFile != "" {
+				data, err := os.ReadFile(payload.BodyFile)
+				if err != nil {
+					return domain.ResponseResult{Err: fmt.Errorf("read body file error: %w", err), Duration: time.Since(startTime)}
+				}
+				reqBody = bytes.NewReader(data)
+			} else {
+				reqBody = bytes.NewBufferString(payload.BodyRaw)
+			}
+		} else if payload.BodyType == "form" && (payload.FormPath != "" || len(payload.FormFiles) > 0 || len(payload.FormFields) > 0) {
 			bodyBuf := &bytes.Buffer{}
 			writer := multipart.NewWriter(bodyBuf)
-
-			file, err := os.Open(payload.FormPath)
-			if err != nil {
-				return domain.ResponseResult{
-					Err:      fmt.Errorf("open file error: %w", err),
-					Duration: time.Since(startTime),
+			for _, field := range payload.FormFields {
+				if strings.TrimSpace(field.Key) != "" {
+					if err := writer.WriteField(field.Key, field.Value); err != nil {
+						return domain.ResponseResult{Err: fmt.Errorf("write form field error: %w", err), Duration: time.Since(startTime)}
+					}
 				}
 			}
-			defer file.Close()
-
-			fieldName := strings.TrimSpace(payload.FormKey)
-			if fieldName == "" {
-				fieldName = "file"
-			}
-
-			part, err := writer.CreateFormFile(fieldName, filepath.Base(payload.FormPath))
-			if err != nil {
-				return domain.ResponseResult{
-					Err:      fmt.Errorf("create form file error: %w", err),
-					Duration: time.Since(startTime),
+			files := append([]domain.KeyValue(nil), payload.FormFiles...)
+			if payload.FormPath != "" {
+				key := strings.TrimSpace(payload.FormKey)
+				if key == "" {
+					key = "file"
 				}
+				files = append(files, domain.KeyValue{Key: key, Value: payload.FormPath})
 			}
-			if _, err = io.Copy(part, file); err != nil {
-				return domain.ResponseResult{
-					Err:      fmt.Errorf("copy file data error: %w", err),
-					Duration: time.Since(startTime),
+			for _, field := range files {
+				file, err := os.Open(field.Value)
+				if err != nil {
+					return domain.ResponseResult{Err: fmt.Errorf("open file error: %w", err), Duration: time.Since(startTime)}
+				}
+				part, err := writer.CreateFormFile(field.Key, filepath.Base(field.Value))
+				if err == nil {
+					_, err = io.Copy(part, file)
+				}
+				_ = file.Close()
+				if err != nil {
+					return domain.ResponseResult{Err: fmt.Errorf("write form file error: %w", err), Duration: time.Since(startTime)}
 				}
 			}
 

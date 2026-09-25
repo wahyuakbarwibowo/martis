@@ -39,7 +39,7 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 
 ### 6. cURL Integration
 - [x] **Import from cURL**: Fitur paste perintah `curl -X POST ...` dan otomatis mengisi URL, headers, dan body.
-- [x] **Form-data file picker**: Pilih file lokal dengan Finder (macOS), picker internal (platform lain), mouse, atau `Ctrl+F`; termasuk cURL `-F field=@file;type=mime`.
+- [x] **Form-data file picker**: Pilih file lokal dengan Finder (macOS), picker internal (platform lain), mouse, atau `Ctrl+F`; mendukung banyak field/file dan cURL `-F field=@file;type=mime`.
 - [x] **Export to cURL**: Tombol/shortcut untuk mengekspor konfigurasi request saat ini menjadi perintah cURL terminal.
 
 ---

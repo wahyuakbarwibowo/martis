@@ -22,6 +22,11 @@ jobs:
         with:
           go-version: stable
 
+      - name: Validate
+        run: |
+          go test -race ./...
+          go vet ./...
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:

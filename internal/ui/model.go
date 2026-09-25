@@ -195,8 +195,11 @@ type Model struct {
 	headerVal    textinput.Model
 	headerAuth   textinput.Model
 	jsonBody     textarea.Model
+	bodyFile     string
 	formKey      textinput.Model
 	formFilePath textinput.Model
+	formFields   []domain.KeyValue
+	formFiles    []domain.KeyValue
 	configEditor textarea.Model
 	extraHeaders []domain.KeyValue
 	queryRows    []domain.KeyValue
@@ -397,6 +400,7 @@ func (m *Model) loadCollectionItem(item domain.CollectionItem) {
 	m.headerVal.SetValue(item.HeaderVal)
 	m.headerAuth.SetValue(item.HeaderAuth)
 	m.extraHeaders = item.Headers
+	// Keep legacy single-file fields while restoring newer multipart entries.
 	m.auth = item.Auth
 	m.assertions = item.Assertions
 	m.syncEditorFromTab()
@@ -405,9 +409,12 @@ func (m *Model) loadCollectionItem(item domain.CollectionItem) {
 		m.tab = TabBodyForm
 		m.formKey.SetValue(item.FormKey)
 		m.formFilePath.SetValue(item.FormPath)
+		m.formFields = append([]domain.KeyValue(nil), item.FormFields...)
+		m.formFiles = append([]domain.KeyValue(nil), item.FormFiles...)
 	} else {
 		m.tab = TabBodyRaw
 		m.jsonBody.SetValue(item.BodyRaw)
+		m.bodyFile = item.BodyFile
 	}
 	if rows, err := requestutil.Query(item.URL); err == nil {
 		m.queryRows = rows
@@ -541,8 +548,11 @@ func (m *Model) saveCurrentToCollection(name string) {
 		HeaderAuth: m.headerAuth.Value(),
 		BodyType:   bodyType,
 		BodyRaw:    m.jsonBody.Value(),
+		BodyFile:   m.bodyFile,
 		FormKey:    m.formKey.Value(),
 		FormPath:   m.formFilePath.Value(),
+		FormFields: append([]domain.KeyValue(nil), m.formFields...),
+		FormFiles:  append([]domain.KeyValue(nil), m.formFiles...),
 	}
 
 	if len(m.collection.Folders) == 0 {
@@ -579,8 +589,11 @@ func (m *Model) executeRequestCmd() tea.Cmd {
 		HeaderAuth: m.headerAuth.Value(),
 		BodyType:   bodyType,
 		BodyRaw:    m.jsonBody.Value(),
+		BodyFile:   m.bodyFile,
 		FormKey:    m.formKey.Value(),
 		FormPath:   m.formFilePath.Value(),
+		FormFields: append([]domain.KeyValue(nil), m.formFields...),
+		FormFiles:  append([]domain.KeyValue(nil), m.formFiles...),
 	}
 
 	if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
@@ -610,7 +623,8 @@ func (m *Model) executeRequestCmd() tea.Cmd {
 }
 
 func (m *Model) currentPayload() domain.RequestPayload {
-	p := domain.RequestPayload{Method: m.methods[m.methodIndex], URL: m.urlInput.Value(), HeaderKey: m.headerKey.Value(), HeaderVal: m.headerVal.Value(), HeaderAuth: m.headerAuth.Value(), BodyType: "raw", BodyRaw: m.jsonBody.Value(), FormKey: m.formKey.Value(), FormPath: m.formFilePath.Value(), Headers: append([]domain.KeyValue(nil), m.extraHeaders...), Auth: m.auth, Assertions: m.assertions}
+	p := domain.RequestPayload{Method: m.methods[m.methodIndex], URL: m.urlInput.Value(), HeaderKey: m.headerKey.Value(), HeaderVal: m.headerVal.Value(), HeaderAuth: m.headerAuth.Value(), BodyType: "raw", BodyRaw: m.jsonBody.Value(), FormKey: m.formKey.Value(), FormPath: m.formFilePath.Value(), FormFields: append([]domain.KeyValue(nil), m.formFields...), FormFiles: append([]domain.KeyValue(nil), m.formFiles...), Headers: append([]domain.KeyValue(nil), m.extraHeaders...), Auth: m.auth, Assertions: m.assertions}
+	p.BodyFile = m.bodyFile
 	if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
 		_ = m.syncTabFromEditor()
 		p.HeaderKey = m.headerKey.Value()
@@ -633,7 +647,7 @@ func (m *Model) currentPayload() domain.RequestPayload {
 }
 
 func (m *Model) payloadToItem(p domain.RequestPayload) domain.CollectionItem {
-	return domain.CollectionItem{ID: fmt.Sprintf("history-%d", time.Now().UnixNano()), Name: p.Method + " " + filepath.Base(p.URL), Method: p.Method, URL: p.URL, HeaderKey: p.HeaderKey, HeaderVal: p.HeaderVal, HeaderAuth: p.HeaderAuth, BodyType: p.BodyType, BodyRaw: p.BodyRaw, FormKey: p.FormKey, FormPath: p.FormPath, Headers: append([]domain.KeyValue(nil), p.Headers...), Auth: p.Auth, Assertions: p.Assertions}
+	return domain.CollectionItem{ID: fmt.Sprintf("history-%d", time.Now().UnixNano()), Name: p.Method + " " + filepath.Base(p.URL), Method: p.Method, URL: p.URL, HeaderKey: p.HeaderKey, HeaderVal: p.HeaderVal, HeaderAuth: p.HeaderAuth, BodyType: p.BodyType, BodyRaw: p.BodyRaw, BodyFile: p.BodyFile, FormKey: p.FormKey, FormPath: p.FormPath, FormFields: append([]domain.KeyValue(nil), p.FormFields...), FormFiles: append([]domain.KeyValue(nil), p.FormFiles...), Headers: append([]domain.KeyValue(nil), p.Headers...), Auth: p.Auth, Assertions: p.Assertions}
 }
 
 func formatResponseHeaders(headers http.Header) string {
@@ -691,6 +705,21 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 			if m.modalIndex < 0 {
 				m.modalIndex = 0
 			}
+			return nil
+		}
+		if msg.String() == "y" && len(items) > 0 {
+			row := items[m.modalIndex]
+			folder := &m.collection.Folders[row.folderIndex]
+			copyItem := folder.Items[row.itemIndex]
+			copyItem.ID = fmt.Sprintf("item-%d", time.Now().UnixNano())
+			copyItem.Name += " (copy)"
+			folder.Items = append(folder.Items, copyItem)
+			if err := m.repo.Save(m.collection); err != nil {
+				m.modalError = err.Error()
+				return nil
+			}
+			m.rebuildSidebarRows()
+			m.status = "Duplicated request"
 			return nil
 		}
 		if msg.String() == "enter" && len(items) > 0 {
@@ -895,8 +924,11 @@ func (m *Model) importCurl(raw string) error {
 	m.auth = domain.AuthConfig{}
 	m.extraHeaders = nil
 	m.jsonBody.SetValue("")
+	m.bodyFile = ""
 	m.formKey.SetValue("")
 	m.formFilePath.SetValue("")
+	m.formFields = nil
+	m.formFiles = nil
 	for i, method := range m.methods {
 		if method == parsed.Method {
 			m.methodIndex = i
@@ -911,11 +943,23 @@ func (m *Model) importCurl(raw string) error {
 		m.tab = TabBodyRaw
 		m.jsonBody.SetValue(parsed.Body)
 	}
+	if parsed.BodyFile != "" {
+		m.tab = TabBodyRaw
+		m.bodyFile = parsed.BodyFile
+	}
 	if parsed.FormPath != "" {
 		m.tab = TabBodyForm
 		m.formKey.SetValue(parsed.FormKey)
 		m.formFilePath.SetValue(parsed.FormPath)
 	}
+	for key, value := range parsed.FormFields {
+		m.formFields = append(m.formFields, domain.KeyValue{Key: key, Value: value})
+	}
+	for key, value := range parsed.FormFiles {
+		m.formFiles = append(m.formFiles, domain.KeyValue{Key: key, Value: value})
+	}
+	sort.Slice(m.formFields, func(i, j int) bool { return m.formFields[i].Key < m.formFields[j].Key })
+	sort.Slice(m.formFiles, func(i, j int) bool { return m.formFiles[i].Key < m.formFiles[j].Key })
 	m.syncEditorFromTab()
 	m.updateFocusStates()
 	return nil
@@ -1861,7 +1905,7 @@ func (m Model) renderModal(background string) string {
 			}
 			body += name + "\n"
 		}
-		body += "↑/↓ select • Enter load • d delete"
+		body += "↑/↓ select • Enter load • y duplicate • d delete"
 	case modalFolder:
 		title = "New collection folder"
 		body = m.modalInput.View() + "\nEnter to create"
