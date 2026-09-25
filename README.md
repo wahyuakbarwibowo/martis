@@ -1,82 +1,87 @@
-# Martis TUI - Ultra-Light REST Client
+<div align="center">
 
-Alternatif Postman berbasis Terminal User Interface (TUI) yang ultra-ringan, responsif, dan hemat memori, dibangun menggunakan Go dan Charmbracelet stack.
+# ⚡ Martis
 
-## Tech Stack
-- **Go (Golang)**: Standar `net/http` untuk client HTTP non-blocking.
-- **TUI Engine**: [Bubble Tea](https://github.com/charmbracelet/bubbletea)
-- **Styling**: [Lip Gloss](https://github.com/charmbracelet/lipgloss)
-- **UI Components**: [Bubbles](https://github.com/charmbracelet/bubbles) (`textinput`, `textarea`, `viewport`, `spinner`)
+**Ultra-lightweight, blazing-fast Terminal User Interface (TUI) REST client.**  
+*A lightweight Postman alternative for your terminal, built with Go & Bubble Tea.*
 
-## Fitur Utama
-1. **Split-View Responsive**: Request Builder di sisi kiri dan Response Viewer di sisi kanan.
-2. **Method Selector**: Beralih antara `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`.
-3. **Tab Configuration**:
-   - **Headers**: Custom key-value header & Authorization token/credentials.
-   - **Body (Raw JSON)**: Multiline textarea dengan pretty format.
-   - **Body (Form-Data / Upload)**: Field name dan local file path untuk multipart testing.
-4. **Asynchronous Request**: Eksekusi HTTP non-blocking dengan animasi spinner loading dan timeout protection.
-5. **Response Metrics & Pretty-Print**:
-   - Status badge dengan kode warna (Hijau 2xx, Kuning 3xx, Merah 4xx/5xx).
-   - Latency timer (ms) dan payload content-length.
-   - Response headers & pretty-printed JSON response viewport dengan scrolling.
+[![Go Version](https://img.shields.io/github/go-mod/go-version/wahyuakbarwibowo/martis?color=00ADD8)](https://golang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/wahyuakbarwibowo/martis?color=7D56F4)](https://github.com/wahyuakbarwibowo/martis/releases)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue)](https://github.com/wahyuakbarwibowo/martis/releases)
 
-## Cara Menjalankan
-
-```bash
-# Jalankan langsung
-go run main.go
-
-# Atau build binary
-go build -o martis-tui .
-./martis-tui
-```
-
-## Navigasi Keyboard
-- `Tab` / `Shift+Tab`: Pindah fokus antar elemen (Method -> URL -> Config Tabs -> Inputs -> Send -> Response Viewport).
-- `Ctrl+T`: Pindah antar tab konfigurasi dengan cepat (Headers / Raw JSON / Form-Data).
-- `Ctrl+S` atau `Enter` di URL/Send: Kirim HTTP request.
-- `↑` / `↓` / `j` / `k`: Navigasi dan scroll viewport response saat aktif.
-- `q` (saat di Response Viewport) atau `Ctrl+C`: Keluar dari aplikasi.
+</div>
 
 ---
 
-## 🚀 Instalasi & Release (Ready to Install)
+## 🌟 Highlights
 
-### 1. Install ke Sistem via Make (Rekomendasi Lokal)
-Mengompilasi binary release teroptimasi dan memasangnya langsung ke `/usr/local/bin/martis`:
+- 🏎️ **Ultra-Fast & Zero Lag**: Memory footprint minimal (< 20MB RAM) dengan waktu startup instan.
+- 🖥️ **Split-Screen Responsive**: Request Builder di panel kiri dan Response Viewer di panel kanan.
+- ⌨️ **Keyboard First**: Navigasi intuitif menggunakan tombol `Tab`, `Shift+Tab`, dan shortcut tanpa perlu mouse.
+- 📡 **Built-in Async Engine**: Eksekusi HTTP non-blocking menggunakan native goroutines dan Go standard library `net/http`.
+- 🎨 **Beautiful Formatting**: Dilengkapi status code badges Lipgloss, pretty-printed JSON body, metadata latency, dan size metrics.
+- 📦 **Cross-Platform**: Binary mandiri siap jalan untuk macOS (Apple Silicon & Intel), Linux, dan Windows.
+
+---
+
+## 🚀 Quick Install
+
+### macOS / Linux (via Make)
 ```bash
+git clone https://github.com/wahyuakbarwibowo/martis.git
+cd martis
 make install
 ```
-Setelah itu, Martis dapat langsung dipanggil dari mana saja:
+Setelah terpasang, cukup jalankan:
 ```bash
 martis
 ```
-Untuk menghapus:
+
+### Install via Shell Script
 ```bash
-make uninstall
+curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | bash
 ```
 
-### 2. Install via Script (`install.sh`)
+### Via Go Toolchain
 ```bash
-./install.sh
+go install github.com/wahyuakbarwibowo/martis@latest
 ```
 
-### 3. Cross-Compile Multi-Platform Release
-Untuk membuat binary release untuk Linux, macOS, dan Windows sekaligus:
+### Pre-built Binary
+Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/wahyuakbarwibowo/martis/releases).
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Aksi |
+|---|---|
+| `Tab` / `Shift+Tab` | Pindah fokus antar elemen UI |
+| `Ctrl+T` | Ganti tab konfigurasi request (*Headers* / *Raw JSON* / *Form-Data*) |
+| `Ctrl+S` | Kirim HTTP Request |
+| `Enter` | Kirim request (saat di URL bar / Send button) |
+| `←` / `→` | Ganti HTTP Method (*GET*, *POST*, *PUT*, *DELETE*, *PATCH*, *HEAD*) |
+| `↑` / `↓` / `j` / `k` | Scroll response viewer (saat fokus di viewport) |
+| `q` / `Ctrl+C` | Keluar dari aplikasi |
+
+---
+
+## 🛠️ CLI Commands
+
 ```bash
-make release-all
+martis           # Buka antarmuka TUI
+martis version   # Tampilkan versi terpasang
+martis update    # Cek & perbarui aplikasi dari upstream
+martis help      # Tampilkan ringkasan bantuan
 ```
-File output akan tersedia di direktori `dist/`:
-- `dist/martis-darwin-arm64` (macOS Apple Silicon M1/M2/M3)
-- `dist/martis-darwin-amd64` (macOS Intel)
-- `dist/martis-linux-amd64` (Linux x86_64)
-- `dist/martis-linux-arm64` (Linux ARM64)
-- `dist/martis-windows-amd64.exe` (Windows x64)
 
-### 4. CI/CD Otomatis (GitHub Actions & GoReleaser)
-Telah disediakan konfigurasi:
-- [.goreleaser.yaml](.goreleaser.yaml)
-- [.github/workflows/release.yml](.github/workflows/release.yml)
+---
 
-Saat Anda membuat git tag baru (misal: `git tag v1.0.0 && git push origin v1.0.0`), GitHub Actions akan secara otomatis mengompilasi dan mempublikasikan tar.gz/zip beserta checksums ke halaman GitHub Releases.
+## 🗺️ Roadmap & Kontribusi
+Lihat [TODO.md](TODO.md) untuk melihat daftar rencana fitur berikutnya (Collections, Environments, Auth Presets, cURL import/export). Kontribusi dan pull request selalu disambut dengan baik!
+
+---
+
+## 📄 Lisensi
+Didistribusikan di bawah lisensi [MIT](LICENSE).
