@@ -41,15 +41,15 @@ func TestMouseClickTogglesFolderAtRenderedRow(t *testing.T) {
 	}
 }
 
-func TestMouseClickSelectsFormField(t *testing.T) {
+func TestMouseClickOpensFormFilePicker(t *testing.T) {
 	m := NewModel(&testCollectionRepo{collection: &domain.Collection{}}, testHTTPClient{})
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = updated.(Model)
 	m.tab = TabBodyForm
 	updated, _ = m.Update(tea.MouseMsg{X: 40, Y: 10, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
 	m = updated.(Model)
-	if m.focus != FocusConfig || m.formFocusIndex != 1 || !m.formFilePath.Focused() {
-		t.Fatalf("clicking form path should focus file field: focus=%v index=%d", m.focus, m.formFocusIndex)
+	if m.modal != modalFilePicker || m.formFocusIndex != 1 {
+		t.Fatalf("clicking form path should open picker: modal=%v index=%d", m.modal, m.formFocusIndex)
 	}
 }
 

@@ -1076,6 +1076,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.formFocusIndex = 0
 					} else if msg.Y <= 11 {
 						m.formFocusIndex = 1
+						m.openFilePicker()
+						return m, nil
 					}
 				}
 				m.updateFocusStates()
