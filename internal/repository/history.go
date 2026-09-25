@@ -17,7 +17,9 @@ func ConfigDir() string {
 
 func LegacyConfigDir() string {
 	home, err := os.UserHomeDir()
-	if err != nil { return "." }
+	if err != nil {
+		return "."
+	}
 	return filepath.Join(home, ".config", "martis")
 }
 
@@ -50,8 +52,19 @@ func LoadHistory(path string) ([]domain.HistoryEntry, error) {
 	if os.IsNotExist(err) {
 		if path == filepath.Join(ConfigDir(), "history.json") {
 			legacy, legacyErr := os.ReadFile(filepath.Join(LegacyConfigDir(), "history.json"))
-			if legacyErr == nil { var entries []domain.HistoryEntry; if decodeErr:=json.Unmarshal(legacy,&entries);decodeErr!=nil{return nil,decodeErr};if saveErr:=WriteJSON(path,entries);saveErr!=nil{return nil,saveErr};return entries,nil }
-			if !os.IsNotExist(legacyErr) { return nil, legacyErr }
+			if legacyErr == nil {
+				var entries []domain.HistoryEntry
+				if decodeErr := json.Unmarshal(legacy, &entries); decodeErr != nil {
+					return nil, decodeErr
+				}
+				if saveErr := WriteJSON(path, entries); saveErr != nil {
+					return nil, saveErr
+				}
+				return entries, nil
+			}
+			if !os.IsNotExist(legacyErr) {
+				return nil, legacyErr
+			}
 		}
 		return nil, nil
 	}

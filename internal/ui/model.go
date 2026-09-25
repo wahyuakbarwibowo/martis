@@ -68,6 +68,29 @@ func configTabAtX(x int) ConfigTab {
 	return TabAssertions
 }
 
+func responseTabAtX(x int) int {
+	if x < 8 {
+		return 0
+	}
+	if x < 18 {
+		return 1
+	}
+	return 2
+}
+
+func (m Model) collectionItems() []treeRow {
+	var rows []treeRow
+	if m.collection == nil {
+		return rows
+	}
+	for folderIndex, folder := range m.collection.Folders {
+		for itemIndex, item := range folder.Items {
+			rows = append(rows, treeRow{rowType: rowItem, folderIndex: folderIndex, itemIndex: itemIndex, name: folder.Name + " / " + item.Name, method: item.Method})
+		}
+	}
+	return rows
+}
+
 type modalKind int
 
 const (
@@ -79,6 +102,9 @@ const (
 	modalEnvironment
 	modalTheme
 	modalBenchmark
+	modalAuth
+	modalCollections
+	modalFolder
 )
 
 type treeRowType int
@@ -229,8 +255,18 @@ func NewModel(repo repository.CollectionRepository, client httpclient.Client) Mo
 	}
 	m.history, _ = repository.LoadHistory(filepath.Join(repository.ConfigDir(), "history.json"))
 	m.envFiles, _ = environment.Files(filepath.Join(repository.ConfigDir(), "environments"))
-	if len(m.envFiles)==0 {m.envFiles,_=environment.Files(filepath.Join(repository.LegacyConfigDir(),"environments"))}
-	if data,err:=os.ReadFile(filepath.Join(repository.ConfigDir(),"preferences.json"));err==nil {var prefs struct{Theme int `json:"theme"`};if json.Unmarshal(data,&prefs)==nil&&prefs.Theme>=0&&prefs.Theme<5 {m.themeIndex=prefs.Theme;m.applyTheme()}}
+	if len(m.envFiles) == 0 {
+		m.envFiles, _ = environment.Files(filepath.Join(repository.LegacyConfigDir(), "environments"))
+	}
+	if data, err := os.ReadFile(filepath.Join(repository.ConfigDir(), "preferences.json")); err == nil {
+		var prefs struct {
+			Theme int `json:"theme"`
+		}
+		if json.Unmarshal(data, &prefs) == nil && prefs.Theme >= 0 && prefs.Theme < 5 {
+			m.themeIndex = prefs.Theme
+			m.applyTheme()
+		}
+	}
 
 	m.rebuildSidebarRows()
 	m.updateFocusStates()
@@ -299,14 +335,7 @@ func (m *Model) updateFocusStates() {
 	case FocusConfig:
 		switch m.tab {
 		case TabHeaders:
-			switch m.headersFocusIndex {
-			case 0:
-				m.headerKey.Focus()
-			case 1:
-				m.headerVal.Focus()
-			case 2:
-				m.headerAuth.Focus()
-			}
+			m.configEditor.Focus()
 		case TabBodyRaw:
 			m.jsonBody.Focus()
 		case TabBodyForm:
@@ -358,8 +387,14 @@ func (m *Model) syncEditorFromTab() {
 	var text string
 	switch m.tab {
 	case TabHeaders:
+		if m.headerKey.Value() != "" {
+			text += m.headerKey.Value() + ": " + m.headerVal.Value() + "\n"
+		}
 		for _, h := range m.extraHeaders {
 			text += h.Key + ": " + h.Value + "\n"
+		}
+		if m.headerAuth.Value() != "" {
+			text += "Authorization: " + m.headerAuth.Value() + "\n"
 		}
 	case TabQuery:
 		for _, q := range m.queryRows {
@@ -379,6 +414,9 @@ func (m *Model) syncTabFromEditor() error {
 	switch m.tab {
 	case TabHeaders:
 		m.extraHeaders = nil
+		m.headerKey.SetValue("")
+		m.headerVal.SetValue("")
+		m.headerAuth.SetValue("")
 		for i, line := range strings.Split(text, "\n") {
 			if strings.TrimSpace(line) == "" {
 				continue
@@ -387,7 +425,15 @@ func (m *Model) syncTabFromEditor() error {
 			if !ok || strings.TrimSpace(k) == "" {
 				return fmt.Errorf("header line %d must be Key: Value", i+1)
 			}
-			m.extraHeaders = append(m.extraHeaders, domain.KeyValue{Key: strings.TrimSpace(k), Value: strings.TrimSpace(v)})
+			key, value := strings.TrimSpace(k), strings.TrimSpace(v)
+			if strings.EqualFold(key, "Authorization") {
+				m.headerAuth.SetValue(value)
+			} else if m.headerKey.Value() == "" {
+				m.headerKey.SetValue(key)
+				m.headerVal.SetValue(value)
+			} else {
+				m.extraHeaders = append(m.extraHeaders, domain.KeyValue{Key: key, Value: value})
+			}
 		}
 	case TabQuery:
 		m.queryRows = nil
@@ -400,6 +446,11 @@ func (m *Model) syncTabFromEditor() error {
 				return fmt.Errorf("query line %d must be key=value", i+1)
 			}
 			m.queryRows = append(m.queryRows, domain.KeyValue{Key: strings.TrimSpace(k), Value: strings.TrimSpace(v)})
+		}
+		if updated, err := requestutil.WithQuery(m.urlInput.Value(), m.queryRows); err == nil {
+			m.urlInput.SetValue(updated)
+		} else {
+			return err
 		}
 	case TabAuth:
 		var auth domain.AuthConfig
@@ -428,6 +479,12 @@ func (m *Model) toggleFolder(fIdx int) {
 func (m *Model) saveCurrentToCollection(name string) {
 	if m.collection == nil {
 		m.collection = &domain.Collection{Name: "Default Workspace", Folders: []domain.Folder{{ID: "folder-default", Name: "My Requests", IsExpanded: true}}}
+	}
+	if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
+		if err := m.syncTabFromEditor(); err != nil {
+			m.status = err.Error()
+			return
+		}
 	}
 	if strings.TrimSpace(name) == "" {
 		name = fmt.Sprintf("%s %s", m.methods[m.methodIndex], filepath.Base(m.urlInput.Value()))
@@ -498,6 +555,9 @@ func (m *Model) executeRequestCmd() tea.Cmd {
 			return func() tea.Msg { return domain.ResponseResult{Err: err} }
 		}
 	}
+	payload.HeaderKey = m.headerKey.Value()
+	payload.HeaderVal = m.headerVal.Value()
+	payload.HeaderAuth = m.headerAuth.Value()
 	payload.Headers = append([]domain.KeyValue(nil), m.extraHeaders...)
 	payload.Auth = m.auth
 	payload.Assertions = m.assertions
@@ -518,6 +578,15 @@ func (m *Model) executeRequestCmd() tea.Cmd {
 
 func (m *Model) currentPayload() domain.RequestPayload {
 	p := domain.RequestPayload{Method: m.methods[m.methodIndex], URL: m.urlInput.Value(), HeaderKey: m.headerKey.Value(), HeaderVal: m.headerVal.Value(), HeaderAuth: m.headerAuth.Value(), BodyType: "raw", BodyRaw: m.jsonBody.Value(), FormKey: m.formKey.Value(), FormPath: m.formFilePath.Value(), Headers: append([]domain.KeyValue(nil), m.extraHeaders...), Auth: m.auth, Assertions: m.assertions}
+	if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
+		_ = m.syncTabFromEditor()
+		p.HeaderKey = m.headerKey.Value()
+		p.HeaderVal = m.headerVal.Value()
+		p.HeaderAuth = m.headerAuth.Value()
+		p.Headers = append([]domain.KeyValue(nil), m.extraHeaders...)
+		p.Auth = m.auth
+		p.Assertions = m.assertions
+	}
 	if m.tab == TabBodyForm {
 		p.BodyType = "form"
 	}
@@ -564,6 +633,43 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 		m.updateFocusStates()
 		return nil
 	}
+	if m.modal == modalCollections {
+		items := m.collectionItems()
+		if msg.String() == "up" && len(items) > 0 {
+			m.modalIndex = (m.modalIndex - 1 + len(items)) % len(items)
+			return nil
+		}
+		if msg.String() == "down" && len(items) > 0 {
+			m.modalIndex = (m.modalIndex + 1) % len(items)
+			return nil
+		}
+		if (msg.String() == "d" || msg.String() == "backspace") && len(items) > 0 {
+			row := items[m.modalIndex]
+			folder := &m.collection.Folders[row.folderIndex]
+			folder.Items = append(folder.Items[:row.itemIndex], folder.Items[row.itemIndex+1:]...)
+			if err := m.repo.Save(m.collection); err != nil {
+				m.modalError = err.Error()
+				return nil
+			}
+			m.rebuildSidebarRows()
+			if m.modalIndex >= len(m.collectionItems()) {
+				m.modalIndex = len(m.collectionItems()) - 1
+			}
+			if m.modalIndex < 0 {
+				m.modalIndex = 0
+			}
+			return nil
+		}
+		if msg.String() == "enter" && len(items) > 0 {
+			row := items[m.modalIndex]
+			m.loadCollectionItem(m.collection.Folders[row.folderIndex].Items[row.itemIndex])
+			m.focus = FocusURL
+			m.modal = modalNone
+			m.updateFocusStates()
+			return nil
+		}
+		return nil
+	}
 	if m.modal == modalHistory || m.modal == modalEnvironment || m.modal == modalTheme {
 		count := 0
 		switch m.modal {
@@ -607,18 +713,62 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 		case modalTheme:
 			m.themeIndex = m.modalIndex
 			m.applyTheme()
+			if err := repository.WriteJSON(filepath.Join(repository.ConfigDir(), "preferences.json"), struct {
+				Theme int `json:"theme"`
+			}{Theme: m.themeIndex}); err != nil {
+				m.status = "save theme preference: " + err.Error()
+			}
 			m.status = "Theme: " + []string{"Dracula", "Catppuccin", "Nord", "Tokyo Night", "Monokai"}[m.themeIndex]
 		}
 		m.modal = modalNone
 		m.updateFocusStates()
 		return nil
 	}
-	if msg.String() == "ctrl+enter" || (msg.String() == "enter" && m.modal == modalSave) {
+	if m.modal == modalAuth {
+		if msg.String() != "up" && msg.String() != "down" && msg.String() != "enter" {
+			return nil
+		}
+		presets := []domain.AuthConfig{{Mode: "none"}, {Mode: "bearer"}, {Mode: "basic"}, {Mode: "api-key", Location: "header"}, {Mode: "api-key", Location: "query"}, {Mode: "oauth2"}}
+		if msg.String() == "up" {
+			m.modalIndex = (m.modalIndex - 1 + len(presets)) % len(presets)
+			return nil
+		}
+		if msg.String() == "down" {
+			m.modalIndex = (m.modalIndex + 1) % len(presets)
+			return nil
+		}
+		m.auth = presets[m.modalIndex]
+		m.tab = TabAuth
+		m.focus = FocusTabs
+		m.syncEditorFromTab()
+		m.modal = modalNone
+		m.updateFocusStates()
+		m.status = "Authentication preset: " + m.auth.Mode
+		return nil
+	}
+	if msg.String() == "ctrl+enter" || (msg.String() == "enter" && (m.modal == modalSave || m.modal == modalFolder)) {
 		text := strings.TrimSpace(m.modalInput.Value())
 		switch m.modal {
 		case modalSave:
 			m.saveCurrentToCollection(text)
 			m.status = "Saved request to collection"
+		case modalFolder:
+			name := strings.TrimSpace(text)
+			if name == "" {
+				m.modalError = "Folder name is required"
+				return nil
+			}
+			if m.collection == nil {
+				m.collection = &domain.Collection{Name: "Default Workspace"}
+			}
+			m.collection.Folders = append(m.collection.Folders, domain.Folder{ID: fmt.Sprintf("folder-%d", time.Now().UnixNano()), Name: name, IsExpanded: true})
+			if err := m.repo.Save(m.collection); err != nil {
+				m.modalError = err.Error()
+				return nil
+			}
+			m.rebuildSidebarRows()
+			m.selectedTreeIndex = len(m.sidebarRows) - 1
+			m.status = "Created folder " + name
 		case modalCurlImport:
 			if err := m.importCurl(text); err != nil {
 				m.modalError = err.Error()
@@ -680,12 +830,19 @@ func (m *Model) importCurl(raw string) error {
 		return err
 	}
 	m.urlInput.SetValue(parsed.URL)
+	m.headerKey.SetValue("")
+	m.headerVal.SetValue("")
+	m.headerAuth.SetValue("")
+	m.auth = domain.AuthConfig{}
+	m.extraHeaders = nil
+	m.jsonBody.SetValue("")
+	m.formKey.SetValue("")
+	m.formFilePath.SetValue("")
 	for i, method := range m.methods {
 		if method == parsed.Method {
 			m.methodIndex = i
 		}
 	}
-	m.extraHeaders = nil
 	for key, value := range parsed.Headers {
 		m.extraHeaders = append(m.extraHeaders, domain.KeyValue{Key: key, Value: value})
 	}
@@ -741,12 +898,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.jsonBody.SetHeight(vpHeight - 8)
 		m.formKey.Width = halfWidth - 6
 		m.formFilePath.Width = halfWidth - 6
+		m.configEditor.SetWidth(halfWidth - 4)
+		m.configEditor.SetHeight(vpHeight - 8)
 		m.saveNameInput.Width = 35
 
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 			sidebarWidth := 28
-			if msg.X <= sidebarWidth+2 && msg.Y >= 2 {
+			if msg.X < sidebarWidth && msg.Y >= 4 {
 				// View has a title, panel border, tree heading and help line above
 				// the first row. Keep this aligned with renderSidebar's layout.
 				clickedRow := msg.Y - 4
@@ -769,6 +928,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			requestWidth := (m.width - 34) / 2
 			if msg.Y == 4 && requestWidth > 0 && msg.X >= 30 && msg.X < 30+requestWidth {
+				if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
+					if err := m.syncTabFromEditor(); err != nil {
+						m.status = err.Error()
+					}
+				}
 				m.tab = configTabAtX(msg.X - 30)
 				if m.tab == TabQuery {
 					if rows, err := requestutil.Query(m.urlInput.Value()); err == nil {
@@ -777,6 +941,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.syncEditorFromTab()
 				m.focus = FocusTabs
+				m.updateFocusStates()
+				return m, nil
+			}
+			responseStart := 31 + requestWidth
+			if msg.Y == 4 && msg.X >= responseStart {
+				m.responseTab = responseTabAtX(msg.X - responseStart)
+				m.refreshResponse()
+				m.focus = FocusResponse
+				return m, nil
+			}
+			if msg.X >= responseStart && msg.Y >= 5 {
+				m.focus = FocusResponse
+				return m, nil
+			}
+			if msg.X >= 30 && msg.X < 30+requestWidth && msg.Y == 3 {
+				m.focus = FocusURL
+				m.updateFocusStates()
+				return m, nil
+			}
+			if msg.X >= 30 && msg.X < 30+requestWidth && msg.Y == 2 {
+				pos := msg.X - 30
+				if pos < 36 {
+					m.methodIndex = pos / 6
+					if m.methodIndex >= len(m.methods) {
+						m.methodIndex = len(m.methods) - 1
+					}
+					m.focus = FocusMethod
+				} else {
+					m.focus = FocusSend
+				}
+				m.updateFocusStates()
+				return m, nil
+			}
+			if msg.X >= 30 && msg.X < 30+requestWidth && msg.Y >= 5 {
+				m.focus = FocusConfig
 				m.updateFocusStates()
 				return m, nil
 			}
@@ -870,6 +1069,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+e":
 			m.openModal(modalSave, fmt.Sprintf("%s %s", m.methods[m.methodIndex], filepath.Base(m.urlInput.Value())))
 			return m, nil
+		case "ctrl+p":
+			m.openModal(modalCollections, "")
+			return m, nil
+		case "ctrl+n":
+			m.openModal(modalFolder, "")
+			return m, nil
 		case "ctrl+h":
 			m.openModal(modalHistory, "")
 			return m, nil
@@ -925,6 +1130,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f2":
 			m.openModal(modalTheme, "")
 			return m, nil
+		case "f3":
+			m.openModal(modalAuth, "")
+			return m, nil
 		case "/":
 			if m.focus == FocusResponse {
 				m.openModal(modalSearch, "")
@@ -944,7 +1152,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+t":
 			old := m.tab
 			m.tab = (m.tab + 1) % totalTabs
-			if old == TabHeaders {
+			if old == TabHeaders || old == TabQuery {
 				_ = m.syncTabFromEditor()
 			}
 			if m.tab == TabQuery {
@@ -1298,12 +1506,12 @@ func (m Model) renderRequestBuilder(width int) string {
 	}
 	sections = append(sections, lipgloss.JoinHorizontal(lipgloss.Left, urlPrompt, m.urlInput.View()))
 
-	tabLabels := []string{"1.Headers", "2.JSON", "3.Form", "4.Query", "5.Auth", "6.Tests"}
+	tabLabels := []string{"Hdr", "JSON", "Form", "Query", "Auth", "Tests"}
 	var renderedTabs []string
 	for i, label := range tabLabels {
 		if ConfigTab(i) == m.tab {
 			if m.focus == FocusTabs {
-				renderedTabs = append(renderedTabs, styles.ActiveTab.Copy().Background(styles.AccentColor).Foreground(lipgloss.Color("#000000")).Render("▶ "+label))
+				renderedTabs = append(renderedTabs, styles.ActiveTab.Copy().Background(styles.AccentColor).Foreground(lipgloss.Color("#000000")).Render(label))
 			} else {
 				renderedTabs = append(renderedTabs, styles.ActiveTab.Render(label))
 			}
@@ -1316,31 +1524,7 @@ func (m Model) renderRequestBuilder(width int) string {
 	var configContent string
 	switch m.tab {
 	case TabHeaders:
-		kPrefix := "  "
-		vPrefix := "  "
-		aPrefix := "  "
-		if m.focus == FocusConfig {
-			switch m.headersFocusIndex {
-			case 0:
-				kPrefix = "▶ "
-			case 1:
-				vPrefix = "▶ "
-			case 2:
-				aPrefix = "▶ "
-			}
-		}
-		configContent = lipgloss.JoinVertical(
-			lipgloss.Left,
-			styles.Label.Render("Custom Header (Key : Value):"),
-			lipgloss.JoinHorizontal(lipgloss.Left, kPrefix, m.headerKey.View(), " : ", vPrefix, m.headerVal.View()),
-			"",
-			styles.Label.Render("Authorization Header:"),
-			lipgloss.JoinHorizontal(lipgloss.Left, aPrefix, m.headerAuth.View()),
-			"",
-			lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("Tip: Up/Down arrows to move between header fields."),
-			styles.Label.Render("Additional headers (one Key: Value per line):"),
-			m.configEditor.View(),
-		)
+		configContent = lipgloss.JoinVertical(lipgloss.Left, styles.Label.Render("Headers (Key: Value, one per line; include Authorization here)"), m.configEditor.View())
 
 	case TabBodyRaw:
 		prefix := "Payload (Raw JSON):"
@@ -1377,7 +1561,7 @@ func (m Model) renderRequestBuilder(width int) string {
 	case TabQuery, TabAuth, TabAssertions:
 		label := "Query Parameters (key=value per row)"
 		if m.tab == TabAuth {
-			label = "Authentication JSON (none, bearer, basic, api-key, oauth2)"
+			label = "F3 preset; edit authentication JSON (none, bearer, basic, api-key, oauth2)"
 		}
 		if m.tab == TabAssertions {
 			label = "Assertions (Status == 200 / json.id != nil)"
@@ -1509,6 +1693,28 @@ func (m Model) renderModal(background string) string {
 			body += name + "\n"
 		}
 		body += "↑/↓ select • Enter apply"
+	case modalCollections:
+		title = "Saved requests"
+		for i, row := range m.collectionItems() {
+			name := "[" + row.method + "] " + row.name
+			if i == m.modalIndex {
+				name = "▶ " + name
+			}
+			body += name + "\n"
+		}
+		body += "↑/↓ select • Enter load • d delete"
+	case modalFolder:
+		title = "New collection folder"
+		body = m.modalInput.View() + "\nEnter to create"
+	case modalAuth:
+		title = "Authentication preset"
+		for i, name := range []string{"None", "Bearer Token", "Basic Auth", "API Key in Header", "API Key in Query", "OAuth 2.0 Client Credentials"} {
+			if i == m.modalIndex {
+				name = "▶ " + name
+			}
+			body += name + "\n"
+		}
+		body += "Select a preset, then fill its fields in the Auth tab (JSON)."
 	}
 	if m.modalError != "" {
 		body += "\nError: " + m.modalError
