@@ -28,13 +28,3 @@ brews:
     description: Terminal REST client
     license: MIT
     test: system "#{bin}/martis", "version"
-
-scoops:
-  - name: martis
-    repository:
-      owner: wahyuakbarwibowo
-      name: scoop-bucket
-      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/wahyuakbarwibowo/martis
-    description: Terminal REST client
-    license: MIT
