@@ -30,4 +30,4 @@ History uses Conventional Commit prefixes such as `feat:`, `refactor:`, `docs:`,
 
 ## Configuration & Credentials
 
-Collections persist in `~/.config/martis/collections.json`. Keep real tokens, private endpoints, and saved user collections out of commits and screenshots.
+Collections and request history persist under `~/martis/`. Environment files live in `~/martis/environments/`. Keep real tokens, private endpoints, and saved user collections out of commits and screenshots.

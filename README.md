@@ -18,7 +18,7 @@
 
 ## 🌟 Highlights
 
-- 📁 **Collections & Persistence**: Simpan request endpoint ke Collection lokal (`~/.config/martis/collections.json`), muat ulang kapan saja, atau hapus request lama.
+- 📁 **Collections & Persistence**: Simpan request endpoint ke Collection lokal (`~/martis/collections.json`), muat ulang kapan saja, atau hapus request lama.
 - ⚔️ **Ashura King of REST Clients**: Menaklukkan ribuan request endpoint dengan kecepatan instan dan memory footprint super hemat (< 20MB RAM).
 - 🖥️ **Split-Screen Responsive**: Request Builder di panel kiri dan Response Viewer di panel kanan.
 - ⌨️ **Keyboard First**: Navigasi intuitif menggunakan tombol `Tab`, `Shift+Tab`, dan shortcut tanpa perlu mouse.
@@ -61,12 +61,22 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 | Shortcut | Aksi |
 |---|---|
 | `Tab` / `Shift+Tab` | Pindah fokus antar elemen UI |
-| `Ctrl+P` | **Buka modal Collections** (Pilih / Muat request tersimpan) |
+| `Ctrl+P` | **Buka modal Collections** (pilih / muat / hapus request tersimpan) |
+| `Ctrl+N` | Buat folder collection |
 | `Ctrl+E` | **Simpan request aktif ke Collection** |
 | `Ctrl+T` | Ganti tab konfigurasi request (*Headers* / *Raw JSON* / *Form-Data*) |
+| `Ctrl+I` | Impor cURL dari clipboard; jika clipboard kosong, buka editor impor |
+| `Ctrl+X` | Ekspor request aktif sebagai perintah cURL ke clipboard |
+| `Ctrl+H` | Pilih request dari history |
+| `Ctrl+G` | Pilih file environment `.env` |
+| `F2` | Pilih tema |
+| `F3` | Pilih preset autentikasi |
+| `/` | Cari teks di response |
+| `Ctrl+Y` / `Ctrl+O` | Salin response / simpan ke file |
+| `Ctrl+B` | Jalankan benchmark request |
 | `Ctrl+S` | Kirim HTTP Request |
 | `Enter` | Kirim request (saat di URL bar / Send button) atau Konfirmasi modal |
-| `d` / `Backspace` | Hapus item request yang dipilih di modal Collection |
+| `d` / `Backspace` | Hapus request terpilih di sidebar atau modal Collection |
 | `←` / `→` | Ganti HTTP Method (*GET*, *POST*, *PUT*, *DELETE*, *PATCH*, *HEAD*) |
 | `↑` / `↓` / `j` / `k` | Scroll response viewer (saat fokus di viewport) atau navigasi Collection |
 | `q` / `Ctrl+C` | Keluar dari aplikasi |
@@ -86,7 +96,7 @@ martis help        # Tampilkan ringkasan bantuan
 ---
 
 ## 🗺️ Roadmap & Kontribusi
-Lihat [TODO.md](TODO.md) untuk melihat daftar rencana fitur berikutnya (Environments, Auth Presets, cURL import/export). Kontribusi dan pull request selalu disambut dengan baik!
+Impor cURL mendukung method, URL, headers, autentikasi dasar, body, dan satu file form-data. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body. Kontribusi dan pull request selalu disambut dengan baik!
 
 ---
 

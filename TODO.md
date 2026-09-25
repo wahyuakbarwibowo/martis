@@ -7,8 +7,8 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 ## 🎯 High Priority (v0.1.0)
 
 ### 1. Collections & Request History (Persistence)
-- [x] **Request History**: Simpan riwayat request terakhir ke local storage (SQLite embedded atau file JSON di `~/.config/martis/history.json`).
-- [x] **Collections / Workspaces**: Simpan dan kelola kumpulan request tersimpan dengan folder/kategori mirip Postman.
+- [x] **Request History**: Simpan 100 request terakhir ke JSON di `~/martis/history.json`.
+- [x] **Collections / Workspaces**: Simpan request, buat folder, pilih, muat, atau hapus request tersimpan.
 - [x] **Quick History Picker**: Shortcut (misal `Ctrl+H`) untuk memilih dan memuat kembali request sebelumnya.
 
 ### 2. Environment Variables & Interpolation
@@ -25,7 +25,7 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 ## ⚡ Medium Priority (v0.2.0)
 
 ### 4. Authentication Helper
-- [x] Preset form untuk mode autentikasi populer:
+- [x] Preset autentikasi untuk mode populer (F3; isi kredensial di tab Auth):
   - **Bearer Token** (input token instan).
   - **Basic Auth** (Username + Password dengan auto base64 encode).
   - **API Key** (Key-Value dengan opsi `Header` atau `Query Params`).
@@ -56,4 +56,5 @@ Rencana pengembangan dan daftar fitur yang perlu diimplementasikan untuk rilis b
 ### 9. Package Manager Distribution
 - [x] Homebrew tap formula untuk macOS (`brew install wahyuakbarwibowo/tap/martis`).
 - [x] Arch Linux AUR package (`PKGBUILD`).
-- [x] Scoop manifest untuk Windows (`scoop install martis`).
+- [x] Scoop manifest untuk Windows (dibangkitkan GoReleaser saat rilis).
+- [x] Chocolatey package template untuk Windows.
