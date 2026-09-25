@@ -37,15 +37,15 @@ Martis hadir dalam dua bentuk yang berbagi data yang sama (`~/martis`):
 
 ### macOS
 
-**Pakai .dmg:** unduh `Martis_<versi>_arm64.dmg` (Apple Silicon) atau `Martis_<versi>_amd64.dmg` (Intel) dari [Releases](https://github.com/wahyuakbarwibowo/martis/releases/latest), buka, lalu seret **Martis** ke **Applications**. Karena aplikasi belum dinotarisasi Apple, saat pertama kali dibuka klik kanan **Martis → Open**, lalu pilih **Open**.
-
-**Pakai skrip (tanpa peringatan Gatekeeper):**
+**Pakai skrip (disarankan, gratis, tanpa peringatan Gatekeeper):**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | MARTIS_DESKTOP=1 bash
 ```
 
 Skrip memasang `Martis.app` ke `~/Applications` (muncul di Spotlight, Launchpad, dan bisa disematkan ke Dock) serta `martis` dan `martis-desktop` ke PATH.
+
+**Alternatif .dmg:** unduh `Martis_<versi>_arm64.dmg` (Apple Silicon) atau `Martis_<versi>_amd64.dmg` (Intel) dari [Releases](https://github.com/wahyuakbarwibowo/martis/releases/latest), buka, lalu seret **Martis** ke **Applications**. Karena aplikasi belum dinotarisasi Apple, saat pertama kali dibuka klik kanan **Martis → Open**, lalu pilih **Open**.
 
 ### Linux
 
