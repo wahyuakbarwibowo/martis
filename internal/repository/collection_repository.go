@@ -1,43 +1,36 @@
-package main
+package repository
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"martis/internal/domain"
 )
 
-// CollectionItem merepresentasikan sebuah endpoint request yang tersimpan
-type CollectionItem struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Method     string `json:"method"`
-	URL        string `json:"url"`
-	HeaderKey  string `json:"header_key,omitempty"`
-	HeaderVal  string `json:"header_val,omitempty"`
-	HeaderAuth string `json:"header_auth,omitempty"`
-	BodyType   string `json:"body_type"` // "raw" atau "form"
-	BodyRaw    string `json:"body_raw,omitempty"`
-	FormKey    string `json:"form_key,omitempty"`
-	FormPath   string `json:"form_path,omitempty"`
+// CollectionRepository interface untuk abstraksi penyimpanan data
+type CollectionRepository interface {
+	Load() (*domain.Collection, error)
+	Save(col *domain.Collection) error
 }
 
-// Folder merepresentasikan sebuah grup request
-type Folder struct {
-	ID         string           `json:"id"`
-	Name       string           `json:"name"`
-	IsExpanded bool             `json:"is_expanded"`
-	Items      []CollectionItem `json:"items"`
+type fileCollectionRepository struct {
+	filePath string
 }
 
-// Collection merepresentasikan kumpulan folder request
-type Collection struct {
-	Name    string   `json:"name"`
-	Folders []Folder `json:"folders"`
+// NewFileCollectionRepository membuat instance repository berbasis JSON file
+func NewFileCollectionRepository(customPath ...string) CollectionRepository {
+	path := ""
+	if len(customPath) > 0 && customPath[0] != "" {
+		path = customPath[0]
+	} else {
+		path = defaultStoragePath()
+	}
+	return &fileCollectionRepository{filePath: path}
 }
 
-// Dapatkan path default untuk file storage collection
-func getCollectionFilePath() string {
+func defaultStoragePath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "martis_collections.json"
@@ -47,26 +40,25 @@ func getCollectionFilePath() string {
 	return filepath.Join(configDir, "collections.json")
 }
 
-// Load default collection dari disk atau buat default jika belum ada
-func loadCollections() Collection {
-	path := getCollectionFilePath()
-	data, err := os.ReadFile(path)
+// Load membaca data collection dari disk
+func (r *fileCollectionRepository) Load() (*domain.Collection, error) {
+	data, err := os.ReadFile(r.filePath)
 	if err == nil {
-		var col Collection
+		var col domain.Collection
 		if json.Unmarshal(data, &col) == nil && len(col.Folders) > 0 {
-			return col
+			return &col, nil
 		}
 	}
 
-	// Default template collection dengan struktur folders
-	defaultCol := Collection{
+	// Default template jika file belum ada
+	defaultCol := &domain.Collection{
 		Name: "Default Workspace",
-		Folders: []Folder{
+		Folders: []domain.Folder{
 			{
 				ID:         "folder-auth",
 				Name:       "Authentication & Users",
 				IsExpanded: true,
-				Items: []CollectionItem{
+				Items: []domain.CollectionItem{
 					{
 						ID:        "item-1",
 						Name:      "Get All Users",
@@ -75,7 +67,6 @@ func loadCollections() Collection {
 						HeaderKey: "Accept",
 						HeaderVal: "application/json",
 						BodyType:  "raw",
-						BodyRaw:   "",
 					},
 					{
 						ID:        "item-2",
@@ -93,7 +84,7 @@ func loadCollections() Collection {
 				ID:         "folder-echo",
 				Name:       "Testing & Echo Service",
 				IsExpanded: true,
-				Items: []CollectionItem{
+				Items: []domain.CollectionItem{
 					{
 						ID:        "item-3",
 						Name:      "HTTPBin Anything (POST)",
@@ -112,22 +103,20 @@ func loadCollections() Collection {
 						HeaderKey: "Accept",
 						HeaderVal: "application/json",
 						BodyType:  "raw",
-						BodyRaw:   "",
 					},
 				},
 			},
 		},
 	}
-	_ = saveCollections(defaultCol)
-	return defaultCol
+	_ = r.Save(defaultCol)
+	return defaultCol, nil
 }
 
-// Simpan collection ke disk
-func saveCollections(col Collection) error {
-	path := getCollectionFilePath()
+// Save menyimpan data collection ke disk
+func (r *fileCollectionRepository) Save(col *domain.Collection) error {
 	data, err := json.MarshalIndent(col, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal error: %w", err)
+		return fmt.Errorf("failed to marshal collection: %w", err)
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(r.filePath, data, 0644)
 }

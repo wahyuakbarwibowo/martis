@@ -1,0 +1,99 @@
+package domain
+
+import (
+	"fmt"
+	"net/http"
+	"time"
+)
+
+// HTTPMethod merepresentasikan metode HTTP yang valid
+type HTTPMethod string
+
+const (
+	MethodGET    HTTPMethod = "GET"
+	MethodPOST   HTTPMethod = "POST"
+	MethodPUT    HTTPMethod = "PUT"
+	MethodDELETE HTTPMethod = "DELETE"
+	MethodPATCH  HTTPMethod = "PATCH"
+	MethodHEAD   HTTPMethod = "HEAD"
+)
+
+// SupportedMethods mengembalikan daftar method umum
+func SupportedMethods() []string {
+	return []string{
+		string(MethodGET),
+		string(MethodPOST),
+		string(MethodPUT),
+		string(MethodDELETE),
+		string(MethodPATCH),
+		string(MethodHEAD),
+	}
+}
+
+// RequestPayload merepresentasikan data request yang akan dikirim
+type RequestPayload struct {
+	Method      string
+	URL         string
+	HeaderKey   string
+	HeaderVal   string
+	HeaderAuth  string
+	BodyType    string // "raw" atau "form"
+	BodyRaw     string
+	FormKey     string
+	FormPath    string
+	TimeoutSecs time.Duration
+}
+
+// ResponseResult merepresentasikan hasil eksekusi HTTP
+type ResponseResult struct {
+	StatusCode int
+	StatusText string
+	Proto      string
+	Duration   time.Duration
+	Headers    http.Header
+	Body       string
+	Err        error
+}
+
+// CollectionItem merepresentasikan item tersimpan dalam sebuah folder collection
+type CollectionItem struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Method     string `json:"method"`
+	URL        string `json:"url"`
+	HeaderKey  string `json:"header_key,omitempty"`
+	HeaderVal  string `json:"header_val,omitempty"`
+	HeaderAuth string `json:"header_auth,omitempty"`
+	BodyType   string `json:"body_type"` // "raw" atau "form"
+	BodyRaw    string `json:"body_raw,omitempty"`
+	FormKey    string `json:"form_key,omitempty"`
+	FormPath   string `json:"form_path,omitempty"`
+}
+
+// Folder merepresentasikan sebuah grup dalam collection
+type Folder struct {
+	ID         string           `json:"id"`
+	Name       string           `json:"name"`
+	IsExpanded bool             `json:"is_expanded"`
+	Items      []CollectionItem `json:"items"`
+}
+
+// Collection merepresentasikan workspace kumpulan folder
+type Collection struct {
+	Name    string   `json:"name"`
+	Folders []Folder `json:"folders"`
+}
+
+// FormatBytes mengonversi jumlah bytes ke representasi terbaca manusia (B, KB, MB, dsb)
+func FormatBytes(b int) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}

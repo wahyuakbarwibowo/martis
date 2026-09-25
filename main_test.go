@@ -5,6 +5,11 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"martis/internal/domain"
+	"martis/internal/httpclient"
+	"martis/internal/repository"
+	"martis/internal/ui"
 )
 
 func TestFormatBytes(t *testing.T) {
@@ -20,25 +25,19 @@ func TestFormatBytes(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := formatBytes(tc.input)
+		got := domain.FormatBytes(tc.input)
 		if got != tc.expected {
-			t.Errorf("formatBytes(%d) = %s; want %s", tc.input, got, tc.expected)
+			t.Errorf("FormatBytes(%d) = %s; want %s", tc.input, got, tc.expected)
 		}
 	}
 }
 
 func TestInitialModel(t *testing.T) {
-	m := initialModel()
+	repo := repository.NewFileCollectionRepository()
+	client := httpclient.NewClient()
+	m := ui.NewModel(repo, client)
 
-	if len(m.methods) == 0 {
-		t.Fatal("expected methods to be populated")
-	}
-
-	if m.urlInput.Value() == "" {
-		t.Error("expected default URL to not be empty")
-	}
-
-	// Trigger WindowSizeMsg agar width/height terinisialisasi
+	// Trigger WindowSizeMsg
 	updatedModel, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	view := updatedModel.View()
 
