@@ -12,11 +12,12 @@ See `AGENTS.md` for project layout, coding style, testing conventions, and commi
 
 ## Architecture
 
-- `main.go` calls `cli.HandleCLIArgs(version)` first. If it returns true (subcommands `version`, `collections`, `update`, `help`), the process exits without starting the TUI. Otherwise `main.go` wires `repository.NewFileCollectionRepository()` and `httpclient.NewClient(...)` into `ui.NewModel` and runs Bubble Tea with alt screen and mouse cell motion.
+- `main.go` calls `cli.HandleCLIArgs(version)` first. If it returns true (subcommands such as `import`, `version`, `collections`, `update`, `help`), the process exits without starting the TUI. Otherwise `main.go` wires `repository.NewFileCollectionRepository()` and `httpclient.NewClient(...)` into `ui.NewModel` and runs Bubble Tea with alt screen and mouse cell motion.
 - `internal/ui/model.go` is one large Bubble Tea `Model`. It holds focus areas, config tabs, the sidebar tree rows, and the save modal. Requests run asynchronously: `executeRequestCmd` returns a `tea.Cmd`, and `Update` handles the result message. After you change collections, call `rebuildSidebarRows()` so the mouse-clickable sidebar tree stays in sync.
 - `internal/requestutil` sits on top of `domain` and `httpclient`. `Prepare` expands `{{vars}}` from environment values. It also provides query-param editing (`Query`/`WithQuery`), response assertions (`Assert`), and `Benchmark`.
 - `internal/environment` loads `*.env` files and expands variables.
-- `internal/repository/history.go` provides `ConfigDir()` (`~/.config/martis`) and a shared `WriteJSON` helper. Use them for any new persisted file.
+- `internal/repository/history.go` provides `ConfigDir()` (`~/martis`; `LegacyConfigDir()` is the old `~/.config/martis`) and a shared `WriteJSON` helper. Use them for any new persisted file.
+- `internal/importer.File` converts Postman or OpenAPI JSON into a `domain.Collection`; `martis import` appends its folders to the saved collections.
 - `internal/curlparser` handles cURL import (`parser.go`) and export (`export.go`).
 - `cmd/martis/` is empty. The real entry point is the root `main.go`.
 
