@@ -91,3 +91,13 @@ func TestRenameCollectionRequest(t *testing.T) {
 		t.Fatalf("request was not renamed: %#v", m.collection.Folders[0].Items[0])
 	}
 }
+
+func TestFormEditorSupportsMultipleFieldsAndFiles(t *testing.T) {
+	m := NewModel(&testCollectionRepo{collection: &domain.Collection{}}, testHTTPClient{})
+	m.tab = TabBodyForm
+	m.formEditor.SetValue("name=martis\nrole=admin\n@avatar=/tmp/avatar.png\n@document=/tmp/doc.pdf")
+	p := m.currentPayload()
+	if len(p.FormFields) != 2 || len(p.FormFiles) != 1 || p.FormKey != "avatar" || p.FormPath != "/tmp/avatar.png" {
+		t.Fatalf("unexpected form payload: %#v", p)
+	}
+}

@@ -109,6 +109,7 @@ const (
 	modalFolder
 	modalFilePicker
 	modalRename
+	modalMove
 )
 
 type treeRowType int
@@ -177,6 +178,9 @@ type Model struct {
 	renameFolderIndex int
 	renameItemIndex   int
 	renameIsFolder    bool
+	moveFolderIndex   int
+	moveItemFolder    int
+	moveItemIndex     int
 	fileCandidates    []string
 	filePickerDir     string
 	history           []domain.HistoryEntry
@@ -202,6 +206,7 @@ type Model struct {
 	bodyFile     string
 	formKey      textinput.Model
 	formFilePath textinput.Model
+	formEditor   textarea.Model
 	formFields   []domain.KeyValue
 	formFiles    []domain.KeyValue
 	configEditor textarea.Model
@@ -265,6 +270,10 @@ func NewModel(repo repository.CollectionRepository, client httpclient.Client) Mo
 	editor := textarea.New()
 	editor.SetHeight(8)
 	editor.ShowLineNumbers = true
+	formEditor := textarea.New()
+	formEditor.Placeholder = "field=value\n@file=/path/to/file"
+	formEditor.SetHeight(6)
+	formEditor.ShowLineNumbers = true
 	modalEditor := textarea.New()
 	modalEditor.SetHeight(12)
 	modalEditor.SetWidth(64)
@@ -289,6 +298,7 @@ func NewModel(repo repository.CollectionRepository, client httpclient.Client) Mo
 		saveNameInput: sName,
 		spinner:       sp,
 		configEditor:  editor,
+		formEditor:    formEditor,
 		modalInput:    modalEditor,
 		history:       nil,
 		activeEnv:     map[string]string{},
@@ -356,6 +366,7 @@ func (m *Model) updateFocusStates() {
 	m.jsonBody.Blur()
 	m.formKey.Blur()
 	m.formFilePath.Blur()
+	m.formEditor.Blur()
 	m.saveNameInput.Blur()
 	m.configEditor.Blur()
 	m.modalInput.Blur()
@@ -379,12 +390,7 @@ func (m *Model) updateFocusStates() {
 		case TabBodyRaw:
 			m.jsonBody.Focus()
 		case TabBodyForm:
-			switch m.formFocusIndex {
-			case 0:
-				m.formKey.Focus()
-			case 1:
-				m.formFilePath.Focus()
-			}
+			m.formEditor.Focus()
 		}
 		if m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions || m.tab == TabHeaders {
 			m.configEditor.Focus()
@@ -415,6 +421,7 @@ func (m *Model) loadCollectionItem(item domain.CollectionItem) {
 		m.formFilePath.SetValue(item.FormPath)
 		m.formFields = append([]domain.KeyValue(nil), item.FormFields...)
 		m.formFiles = append([]domain.KeyValue(nil), item.FormFiles...)
+		m.syncFormEditorView()
 	} else {
 		m.tab = TabBodyRaw
 		m.jsonBody.SetValue(item.BodyRaw)
@@ -451,6 +458,46 @@ func (m *Model) syncEditorFromTab() {
 		text = m.assertions
 	}
 	m.configEditor.SetValue(strings.TrimSuffix(text, "\n"))
+}
+
+func (m *Model) syncFormEditorView() {
+	var lines []string
+	for _, field := range m.formFields {
+		lines = append(lines, field.Key+"="+field.Value)
+	}
+	if m.formKey.Value() != "" && m.formFilePath.Value() != "" {
+		lines = append(lines, "@"+m.formKey.Value()+"="+m.formFilePath.Value())
+	}
+	for _, field := range m.formFiles {
+		lines = append(lines, "@"+field.Key+"="+field.Value)
+	}
+	m.formEditor.SetValue(strings.Join(lines, "\n"))
+}
+
+func (m *Model) syncFormEditor() error {
+	m.formFields, m.formFiles = nil, nil
+	for i, line := range strings.Split(m.formEditor.Value(), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok || strings.TrimSpace(key) == "" {
+			return fmt.Errorf("form line %d must be field=value or @file=path", i+1)
+		}
+		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
+		if strings.HasPrefix(key, "@") {
+			m.formFiles = append(m.formFiles, domain.KeyValue{Key: strings.TrimPrefix(key, "@"), Value: value})
+		} else {
+			m.formFields = append(m.formFields, domain.KeyValue{Key: key, Value: value})
+		}
+	}
+	if len(m.formFiles) > 0 {
+		m.formKey.SetValue(m.formFiles[0].Key)
+		m.formFilePath.SetValue(m.formFiles[0].Value)
+		m.formFiles = m.formFiles[1:]
+	}
+	return nil
 }
 
 func (m *Model) syncTabFromEditor() error {
@@ -580,6 +627,11 @@ func (m *Model) saveCurrentToCollection(name string) {
 }
 
 func (m *Model) executeRequestCmd() tea.Cmd {
+	if m.tab == TabBodyForm {
+		if err := m.syncFormEditor(); err != nil {
+			return func() tea.Msg { return domain.ResponseResult{Err: err} }
+		}
+	}
 	bodyType := "raw"
 	if m.tab == TabBodyForm {
 		bodyType = "form"
@@ -627,6 +679,9 @@ func (m *Model) executeRequestCmd() tea.Cmd {
 }
 
 func (m *Model) currentPayload() domain.RequestPayload {
+	if m.tab == TabBodyForm {
+		_ = m.syncFormEditor()
+	}
 	p := domain.RequestPayload{Method: m.methods[m.methodIndex], URL: m.urlInput.Value(), HeaderKey: m.headerKey.Value(), HeaderVal: m.headerVal.Value(), HeaderAuth: m.headerAuth.Value(), BodyType: "raw", BodyRaw: m.jsonBody.Value(), FormKey: m.formKey.Value(), FormPath: m.formFilePath.Value(), FormFields: append([]domain.KeyValue(nil), m.formFields...), FormFiles: append([]domain.KeyValue(nil), m.formFiles...), Headers: append([]domain.KeyValue(nil), m.extraHeaders...), Auth: m.auth, Assertions: m.assertions}
 	p.BodyFile = m.bodyFile
 	if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
@@ -724,6 +779,15 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 			}
 			m.rebuildSidebarRows()
 			m.status = "Duplicated request"
+			return nil
+		}
+		if msg.String() == "m" && len(items) > 0 {
+			row := items[m.modalIndex]
+			m.moveItemFolder, m.moveItemIndex = row.folderIndex, row.itemIndex
+			m.moveFolderIndex = row.folderIndex
+			m.modal = modalMove
+			m.modalIndex = row.folderIndex
+			m.updateFocusStates()
 			return nil
 		}
 		if msg.String() == "enter" && len(items) > 0 {
@@ -828,12 +892,55 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 		case "enter":
 			if count > 0 {
 				m.formFilePath.SetValue(filepath.Join(m.filePickerDir, m.fileCandidates[m.modalIndex]))
+				m.syncFormEditorView()
 				m.tab = TabBodyForm
 				m.focus = FocusConfig
 				m.formFocusIndex = 1
 				m.modal = modalNone
 				m.updateFocusStates()
 			}
+			return nil
+		}
+		return nil
+	}
+	if m.modal == modalMove {
+		count := len(m.collection.Folders)
+		switch msg.String() {
+		case "up":
+			if count > 0 {
+				m.modalIndex = (m.modalIndex - 1 + count) % count
+			}
+			return nil
+		case "down":
+			if count > 0 {
+				m.modalIndex = (m.modalIndex + 1) % count
+			}
+			return nil
+		case "enter":
+			if count == 0 || m.moveItemFolder < 0 || m.moveItemFolder >= count {
+				return nil
+			}
+			if m.modalIndex == m.moveItemFolder {
+				m.modalError = "Choose a different folder"
+				return nil
+			}
+			from := &m.collection.Folders[m.moveItemFolder]
+			if m.moveItemIndex < 0 || m.moveItemIndex >= len(from.Items) {
+				m.modalError = "Invalid request target"
+				return nil
+			}
+			item := from.Items[m.moveItemIndex]
+			from.Items = append(from.Items[:m.moveItemIndex], from.Items[m.moveItemIndex+1:]...)
+			m.collection.Folders[m.modalIndex].Items = append(m.collection.Folders[m.modalIndex].Items, item)
+			m.collection.Folders[m.modalIndex].IsExpanded = true
+			if err := m.repo.Save(m.collection); err != nil {
+				m.modalError = err.Error()
+				return nil
+			}
+			m.rebuildSidebarRows()
+			m.modal = modalNone
+			m.status = "Moved request to " + m.collection.Folders[m.modalIndex].Name
+			m.updateFocusStates()
 			return nil
 		}
 		return nil
@@ -955,6 +1062,7 @@ func (m *Model) importCurl(raw string) error {
 	m.bodyFile = ""
 	m.formKey.SetValue("")
 	m.formFilePath.SetValue("")
+	m.formEditor.SetValue("")
 	m.formFields = nil
 	m.formFiles = nil
 	for i, method := range m.methods {
@@ -991,6 +1099,7 @@ func (m *Model) importCurl(raw string) error {
 	}
 	sort.Slice(m.formFields, func(i, j int) bool { return m.formFields[i].Key < m.formFields[j].Key })
 	sort.Slice(m.formFiles, func(i, j int) bool { return m.formFiles[i].Key < m.formFiles[j].Key })
+	m.syncFormEditorView()
 	m.syncEditorFromTab()
 	m.updateFocusStates()
 	return nil
@@ -1058,6 +1167,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.jsonBody.SetHeight(vpHeight - 8)
 		m.formKey.Width = halfWidth - 6
 		m.formFilePath.Width = halfWidth - 6
+		m.formEditor.SetWidth(halfWidth - 4)
+		m.formEditor.SetHeight(vpHeight - 8)
 		m.configEditor.SetWidth(halfWidth - 4)
 		m.configEditor.SetHeight(vpHeight - 8)
 		m.saveNameInput.Width = 35
@@ -1095,6 +1206,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					row := msg.Y - (m.height-len(m.fileCandidates))/2
 					if row >= 0 && row < len(m.fileCandidates) {
 						m.formFilePath.SetValue(filepath.Join(m.filePickerDir, m.fileCandidates[row]))
+						m.syncFormEditorView()
 						m.modal = modalNone
 						m.tab = TabBodyForm
 						m.focus = FocusConfig
@@ -1251,6 +1363,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.formFilePath.SetValue(msg.path)
+		m.syncFormEditorView()
 		m.tab = TabBodyForm
 		m.focus = FocusConfig
 		m.formFocusIndex = 1
@@ -1421,6 +1534,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					name := row.name
 					m.openModal(modalRename, name)
 				}
+			case "m":
+				if m.selectedTreeIndex < len(m.sidebarRows) {
+					row := m.sidebarRows[m.selectedTreeIndex]
+					if row.rowType == rowItem && len(m.collection.Folders) > 1 {
+						m.moveItemFolder, m.moveItemIndex = row.folderIndex, row.itemIndex
+						m.moveFolderIndex = row.folderIndex
+						m.openModal(modalMove, "")
+						m.modalIndex = row.folderIndex
+					}
+				}
 			case "up", "k":
 				if m.selectedTreeIndex > 0 {
 					m.selectedTreeIndex--
@@ -1537,26 +1660,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(cmds...)
 
 			case TabBodyForm:
-				switch msg.String() {
-				case "up":
-					if m.formFocusIndex > 0 {
-						m.formFocusIndex--
-						m.updateFocusStates()
-						return m, nil
+				if msg.String() == "esc" {
+					if err := m.syncFormEditor(); err != nil {
+						m.status = err.Error()
 					}
-				case "down", "enter":
-					if m.formFocusIndex < 1 {
-						m.formFocusIndex++
-						m.updateFocusStates()
-						return m, nil
-					}
+					m.focus = FocusTabs
+					m.updateFocusStates()
+					return m, nil
 				}
 				var fCmd tea.Cmd
-				if m.formFocusIndex == 0 {
-					m.formKey, fCmd = m.formKey.Update(msg)
-				} else {
-					m.formFilePath, fCmd = m.formFilePath.Update(msg)
-				}
+				m.formEditor, fCmd = m.formEditor.Update(msg)
 				cmds = append(cmds, fCmd)
 				return m, tea.Batch(cmds...)
 			}
@@ -1780,25 +1893,11 @@ func (m Model) renderRequestBuilder(width int) string {
 		)
 
 	case TabBodyForm:
-		kPrefix := "  "
-		fPrefix := "  "
-		if m.focus == FocusConfig {
-			if m.formFocusIndex == 0 {
-				kPrefix = "▶ "
-			} else {
-				fPrefix = "▶ "
-			}
-		}
 		configContent = lipgloss.JoinVertical(
 			lipgloss.Left,
-			styles.Label.Render("Form-Data File Upload:"),
-			styles.Label.Render("Field / Key Name:"),
-			lipgloss.JoinHorizontal(lipgloss.Left, kPrefix, m.formKey.View()),
-			"",
-			styles.Label.Render("Local File Path:"),
-			lipgloss.JoinHorizontal(lipgloss.Left, fPrefix, m.formFilePath.View()),
-			"",
-			lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("Tip: type a path or press Ctrl+F to choose a local file."),
+			styles.Label.Render("Form-Data (field=value, @fileField=/path/to/file):"),
+			m.formEditor.View(),
+			lipgloss.NewStyle().Foreground(styles.SubtleColor).Render("Press Ctrl+F to choose the first file, or edit multiple rows directly."),
 		)
 	case TabQuery, TabAuth, TabAssertions:
 		label := "Query Parameters (key=value per row)"
@@ -1951,6 +2050,16 @@ func (m Model) renderModal(background string) string {
 	case modalRename:
 		title = "Rename collection item"
 		body = m.modalInput.View() + "\nEnter to rename"
+	case modalMove:
+		title = "Move request to folder"
+		for i, folder := range m.collection.Folders {
+			name := folder.Name
+			if i == m.modalIndex {
+				name = "▶ " + name
+			}
+			body += name + "\n"
+		}
+		body += "↑/↓ select • Enter move"
 	case modalFilePicker:
 		title = "Choose form-data file"
 		if len(m.fileCandidates) == 0 {

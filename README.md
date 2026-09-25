@@ -98,6 +98,7 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 | `Enter` | Kirim request (saat di URL bar / Send button) atau Konfirmasi modal |
 | `d` / `Backspace` | Hapus request terpilih di sidebar atau modal Collection |
 | `r` | Rename folder atau request terpilih di sidebar |
+| `m` | Pindahkan request terpilih ke folder lain |
 | `←` / `→` | Ganti HTTP Method (*GET*, *POST*, *PUT*, *DELETE*, *PATCH*, *HEAD*) |
 | `↑` / `↓` / `j` / `k` | Scroll response viewer (saat fokus di viewport) atau navigasi Collection |
 | `q` / `Ctrl+C` | Keluar dari aplikasi |
@@ -117,7 +118,7 @@ martis help        # Tampilkan ringkasan bantuan
 ---
 
 ## 🗺️ Roadmap & Kontribusi
-Impor cURL mendukung method, URL, headers, autentikasi dasar, body file (`--data-binary @file`), dan banyak field form-data/file (termasuk atribut MIME seperti `;type=image/png`). Pada macOS, tekan `Ctrl+F` atau klik field path untuk membuka Finder dan memilih file lokal; platform lain memakai picker internal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body. Kontribusi dan pull request selalu disambut dengan baik!
+Pada tab Form-Data, isi satu baris per field (`name=value`) atau file (`@avatar=/path/to/avatar.png`). Impor cURL mendukung method, URL, headers, autentikasi dasar, body file (`--data-binary @file`), dan banyak field form-data/file (termasuk atribut MIME seperti `;type=image/png`). Pada macOS, tekan `Ctrl+F` atau klik editor file untuk membuka Finder dan memilih file lokal; platform lain memakai picker internal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body. Kontribusi dan pull request selalu disambut dengan baik!
 
 ---
 
