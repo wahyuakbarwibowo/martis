@@ -18,6 +18,7 @@
 
 ## 🌟 Highlights
 
+- 📁 **Collections & Persistence**: Simpan request endpoint ke Collection lokal (`~/.config/martis/collections.json`), muat ulang kapan saja, atau hapus request lama.
 - ⚔️ **Ashura King of REST Clients**: Menaklukkan ribuan request endpoint dengan kecepatan instan dan memory footprint super hemat (< 20MB RAM).
 - 🖥️ **Split-Screen Responsive**: Request Builder di panel kiri dan Response Viewer di panel kanan.
 - ⌨️ **Keyboard First**: Navigasi intuitif menggunakan tombol `Tab`, `Shift+Tab`, dan shortcut tanpa perlu mouse.
@@ -60,11 +61,14 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 | Shortcut | Aksi |
 |---|---|
 | `Tab` / `Shift+Tab` | Pindah fokus antar elemen UI |
+| `Ctrl+P` | **Buka modal Collections** (Pilih / Muat request tersimpan) |
+| `Ctrl+E` | **Simpan request aktif ke Collection** |
 | `Ctrl+T` | Ganti tab konfigurasi request (*Headers* / *Raw JSON* / *Form-Data*) |
 | `Ctrl+S` | Kirim HTTP Request |
-| `Enter` | Kirim request (saat di URL bar / Send button) |
+| `Enter` | Kirim request (saat di URL bar / Send button) atau Konfirmasi modal |
+| `d` / `Backspace` | Hapus item request yang dipilih di modal Collection |
 | `←` / `→` | Ganti HTTP Method (*GET*, *POST*, *PUT*, *DELETE*, *PATCH*, *HEAD*) |
-| `↑` / `↓` / `j` / `k` | Scroll response viewer (saat fokus di viewport) |
+| `↑` / `↓` / `j` / `k` | Scroll response viewer (saat fokus di viewport) atau navigasi Collection |
 | `q` / `Ctrl+C` | Keluar dari aplikasi |
 
 ---
@@ -72,16 +76,17 @@ Unduh binary mandiri langsung dari halaman [GitHub Releases](https://github.com/
 ## 🛠️ CLI Commands
 
 ```bash
-martis           # Buka antarmuka TUI
-martis version   # Tampilkan versi terpasang
-martis update    # Cek & perbarui aplikasi dari upstream
-martis help      # Tampilkan ringkasan bantuan
+martis             # Buka antarmuka TUI
+martis collections # Tampilkan daftar request di collection
+martis version     # Tampilkan versi terpasang
+martis update      # Cek & perbarui aplikasi dari upstream
+martis help        # Tampilkan ringkasan bantuan
 ```
 
 ---
 
 ## 🗺️ Roadmap & Kontribusi
-Lihat [TODO.md](TODO.md) untuk melihat daftar rencana fitur berikutnya (Collections, Environments, Auth Presets, cURL import/export). Kontribusi dan pull request selalu disambut dengan baik!
+Lihat [TODO.md](TODO.md) untuk melihat daftar rencana fitur berikutnya (Environments, Auth Presets, cURL import/export). Kontribusi dan pull request selalu disambut dengan baik!
 
 ---
 

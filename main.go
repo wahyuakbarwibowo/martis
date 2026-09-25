@@ -30,9 +30,10 @@ const (
 	focusConfig
 	focusSend
 	focusResponse
+	focusCollection // Modal / Sidebar collection list
 )
 
-const totalFocusAreas = 6
+const totalMainFocusAreas = 6
 
 type configTab int
 
@@ -64,6 +65,13 @@ type model struct {
 	// Navigation & Focus
 	focus focusArea
 	tab   configTab
+
+	// Collection Management
+	collection          Collection
+	selectedColIndex    int
+	showCollectionModal bool
+	saveModalOpen       bool
+	saveNameInput       textinput.Model
 
 	// Request inputs
 	methods      []string
@@ -178,6 +186,12 @@ var (
 	helpStyle = lipgloss.NewStyle().
 			Foreground(subtleColor).
 			MarginTop(1)
+
+	modalBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.DoubleBorder()).
+			BorderForeground(primaryColor).
+			Background(lipgloss.Color("#1E1E2E")).
+			Padding(1, 2)
 )
 
 // --- Initialization ---
@@ -207,7 +221,7 @@ func initialModel() model {
 	// Body textarea
 	ta := textarea.New()
 	ta.Placeholder = "{\n  \"hello\": \"world\"\n}"
-	ta.SetValue("{\n  \"message\": \"Hello from Martis TUI!\",\n  \"status\": \"fast\"\n}")
+	ta.SetValue("{\n  \"message\": \"Hello from Martis!\",\n  \"status\": \"fast\"\n}")
 	ta.ShowLineNumbers = true
 	ta.SetHeight(8)
 
@@ -219,24 +233,34 @@ func initialModel() model {
 	fPath := textinput.New()
 	fPath.Placeholder = "File Path (e.g. ./test.txt)"
 
+	// Save Modal Name input
+	sName := textinput.New()
+	sName.Placeholder = "Request Name (e.g. Get User List)"
+	sName.CharLimit = 100
+
 	// Spinner
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(primaryColor)
 
+	// Load Collections from Disk
+	col := loadCollections()
+
 	m := model{
-		focus:        focusURL,
-		tab:          tabBodyRaw,
-		methods:      []string{"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"},
-		methodIndex:  1, // POST default
-		urlInput:     urlIn,
-		headerKey:    hKey,
-		headerVal:    hVal,
-		headerAuth:   hAuth,
-		jsonBody:     ta,
-		formKey:      fKey,
-		formFilePath: fPath,
-		spinner:      sp,
+		focus:         focusURL,
+		tab:           tabBodyRaw,
+		methods:       []string{"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"},
+		methodIndex:   1, // POST default
+		urlInput:      urlIn,
+		headerKey:     hKey,
+		headerVal:     hVal,
+		headerAuth:    hAuth,
+		jsonBody:      ta,
+		formKey:       fKey,
+		formFilePath:  fPath,
+		saveNameInput: sName,
+		spinner:       sp,
+		collection:    col,
 	}
 
 	m.updateFocusStates()
@@ -260,6 +284,12 @@ func (m *model) updateFocusStates() {
 	m.jsonBody.Blur()
 	m.formKey.Blur()
 	m.formFilePath.Blur()
+	m.saveNameInput.Blur()
+
+	if m.saveModalOpen {
+		m.saveNameInput.Focus()
+		return
+	}
 
 	switch m.focus {
 	case focusURL:
@@ -286,6 +316,60 @@ func (m *model) updateFocusStates() {
 			}
 		}
 	}
+}
+
+// Muat item collection ke form saat ini
+func (m *model) loadCollectionItem(item CollectionItem) {
+	// Set Method
+	for idx, meth := range m.methods {
+		if strings.EqualFold(meth, item.Method) {
+			m.methodIndex = idx
+			break
+		}
+	}
+	m.urlInput.SetValue(item.URL)
+	m.headerKey.SetValue(item.HeaderKey)
+	m.headerVal.SetValue(item.HeaderVal)
+	m.headerAuth.SetValue(item.HeaderAuth)
+
+	if item.BodyType == "form" {
+		m.tab = tabBodyForm
+		m.formKey.SetValue(item.FormKey)
+		m.formFilePath.SetValue(item.FormPath)
+	} else {
+		m.tab = tabBodyRaw
+		m.jsonBody.SetValue(item.BodyRaw)
+	}
+	m.updateFocusStates()
+}
+
+// Simpan request aktif ke collection
+func (m *model) saveCurrentToCollection(name string) {
+	if strings.TrimSpace(name) == "" {
+		name = fmt.Sprintf("%s %s", m.methods[m.methodIndex], m.urlInput.Value())
+	}
+
+	bodyType := "raw"
+	if m.tab == tabBodyForm {
+		bodyType = "form"
+	}
+
+	newItem := CollectionItem{
+		ID:         fmt.Sprintf("item-%d", time.Now().UnixNano()),
+		Name:       name,
+		Method:     m.methods[m.methodIndex],
+		URL:        m.urlInput.Value(),
+		HeaderKey:  m.headerKey.Value(),
+		HeaderVal:  m.headerVal.Value(),
+		HeaderAuth: m.headerAuth.Value(),
+		BodyType:   bodyType,
+		BodyRaw:    m.jsonBody.Value(),
+		FormKey:    m.formKey.Value(),
+		FormPath:   m.formFilePath.Value(),
+	}
+
+	m.collection.Items = append(m.collection.Items, newItem)
+	_ = saveCollections(m.collection)
 }
 
 // --- HTTP Request Command (Asynchronous) ---
@@ -454,6 +538,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.jsonBody.SetHeight(vpHeight - 8)
 		m.formKey.Width = halfWidth - 6
 		m.formFilePath.Width = halfWidth - 6
+		m.saveNameInput.Width = 35
 
 	case spinner.TickMsg:
 		if m.loading {
@@ -482,6 +567,64 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.GotoTop()
 
 	case tea.KeyMsg:
+		// Modal Save Request handling
+		if m.saveModalOpen {
+			switch msg.String() {
+			case "esc":
+				m.saveModalOpen = false
+				m.updateFocusStates()
+				return m, nil
+			case "enter":
+				m.saveCurrentToCollection(m.saveNameInput.Value())
+				m.saveModalOpen = false
+				m.saveNameInput.SetValue("")
+				m.updateFocusStates()
+				return m, nil
+			}
+			var sCmd tea.Cmd
+			m.saveNameInput, sCmd = m.saveNameInput.Update(msg)
+			return m, sCmd
+		}
+
+		// Modal Collection List handling
+		if m.showCollectionModal {
+			switch msg.String() {
+			case "esc", "c", "C":
+				m.showCollectionModal = false
+				m.updateFocusStates()
+				return m, nil
+			case "up", "k":
+				if m.selectedColIndex > 0 {
+					m.selectedColIndex--
+				}
+				return m, nil
+			case "down", "j":
+				if m.selectedColIndex < len(m.collection.Items)-1 {
+					m.selectedColIndex++
+				}
+				return m, nil
+			case "enter":
+				if len(m.collection.Items) > 0 {
+					m.loadCollectionItem(m.collection.Items[m.selectedColIndex])
+				}
+				m.showCollectionModal = false
+				m.updateFocusStates()
+				return m, nil
+			case "d", "backspace": // Hapus item collection
+				if len(m.collection.Items) > 0 {
+					idx := m.selectedColIndex
+					m.collection.Items = append(m.collection.Items[:idx], m.collection.Items[idx+1:]...)
+					if m.selectedColIndex >= len(m.collection.Items) && m.selectedColIndex > 0 {
+						m.selectedColIndex--
+					}
+					_ = saveCollections(m.collection)
+				}
+				return m, nil
+			}
+			return m, nil
+		}
+
+		// Global Keybindings
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
@@ -494,28 +637,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Batch(cmds...)
 
+		case "ctrl+p": // Open Collection Picker
+			m.showCollectionModal = true
+			return m, nil
+
+		case "ctrl+e": // Save request to collection
+			m.saveModalOpen = true
+			m.saveNameInput.SetValue(fmt.Sprintf("%s %s", m.methods[m.methodIndex], filepath.Base(m.urlInput.Value())))
+			m.updateFocusStates()
+			return m, nil
+
 		case "tab":
-			m.focus = (m.focus + 1) % totalFocusAreas
+			m.focus = (m.focus + 1) % totalMainFocusAreas
 			m.updateFocusStates()
 			return m, nil
 
 		case "shift+tab":
-			m.focus = (m.focus - 1 + totalFocusAreas) % totalFocusAreas
+			m.focus = (m.focus - 1 + totalMainFocusAreas) % totalMainFocusAreas
 			m.updateFocusStates()
 			return m, nil
 
 		case "ctrl+t": // Cycle config tabs quickly
 			m.tab = (m.tab + 1) % totalTabs
-			m.updateFocusStates()
-			return m, nil
-
-		case "ctrl+left", "alt+left":
-			m.focus = focusURL
-			m.updateFocusStates()
-			return m, nil
-
-		case "ctrl+right", "alt+right":
-			m.focus = focusResponse
 			m.updateFocusStates()
 			return m, nil
 		}
@@ -694,10 +837,64 @@ func (m model) View() string {
 
 	// Footer Help
 	footer := helpStyle.Render(
-		"[Tab/Shift+Tab] Move Focus • [Ctrl+T] Switch Tabs • [Ctrl+S] Send Request • [q/Ctrl+C] Quit",
+		"[Tab] Focus • [Ctrl+P] Collections • [Ctrl+E] Save Request • [Ctrl+S] Send • [q] Quit",
 	)
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, mainBody, footer)
+	rendered := lipgloss.JoinVertical(lipgloss.Left, header, mainBody, footer)
+
+	// Render Modals if active
+	if m.showCollectionModal {
+		return m.renderCollectionModal(rendered)
+	}
+	if m.saveModalOpen {
+		return m.renderSaveModal(rendered)
+	}
+
+	return rendered
+}
+
+// Render Collection Picker Modal
+func (m model) renderCollectionModal(background string) string {
+	var items []string
+	items = append(items, lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00E676")).Render("📁 Collections / Saved Requests"))
+	items = append(items, lipgloss.NewStyle().Foreground(subtleColor).Render("Use [↑/↓/j/k] to navigate, [Enter] to load, [d] to delete, [Esc] to close\n"))
+
+	if len(m.collection.Items) == 0 {
+		items = append(items, lipgloss.NewStyle().Foreground(subtleColor).Render("No saved requests yet. Press [Ctrl+E] to save current request."))
+	} else {
+		for i, it := range m.collection.Items {
+			prefix := "  "
+			cursor := lipgloss.NewStyle().Foreground(primaryColor)
+			methodBadge := lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("[%-6s]", it.Method))
+
+			if i == m.selectedColIndex {
+				prefix = "▶ "
+				cursor = cursor.Bold(true).Foreground(lipgloss.Color("#FFFFFF")).Background(primaryColor)
+			}
+
+			line := fmt.Sprintf("%s %s %-25s %s", prefix, methodBadge, it.Name, lipgloss.NewStyle().Foreground(subtleColor).Render(it.URL))
+			items = append(items, cursor.Render(line))
+		}
+	}
+
+	modalContent := modalBoxStyle.Render(lipgloss.JoinVertical(lipgloss.Left, items...))
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modalContent)
+}
+
+// Render Save Request Modal
+func (m model) renderSaveModal(background string) string {
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render("💾 Save Request to Collection"),
+		"",
+		labelStyle.Render("Enter a name for this request:"),
+		m.saveNameInput.View(),
+		"",
+		lipgloss.NewStyle().Foreground(subtleColor).Render("[Enter] Save • [Esc] Cancel"),
+	)
+
+	modal := modalBoxStyle.Render(content)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
 
 func (m model) renderRequestBuilder(width int) string {
@@ -718,7 +915,7 @@ func (m model) renderRequestBuilder(width int) string {
 	}
 	methodRow := lipgloss.JoinHorizontal(lipgloss.Center, methodBadges...)
 
-	// Send Button
+	// Send Button & Collection Quick Action
 	sendBtn := sendBtnStyle.Render(" Send [Ctrl+S] ")
 	if m.focus == focusSend {
 		sendBtn = activeSendBtnStyle.Render("▶ Send [Ctrl+S] ")
@@ -729,7 +926,8 @@ func (m model) renderRequestBuilder(width int) string {
 		)
 	}
 
-	topBar := lipgloss.JoinHorizontal(lipgloss.Center, methodRow, "  ", sendBtn)
+	saveBtn := lipgloss.NewStyle().Foreground(subtleColor).Render("[Ctrl+P] Load • [Ctrl+E] Save")
+	topBar := lipgloss.JoinHorizontal(lipgloss.Center, methodRow, "  ", sendBtn, "  ", saveBtn)
 	sections = append(sections, topBar)
 
 	// URL Row
@@ -881,18 +1079,6 @@ func formatBytes(b int) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// --- Main Program ---
-func main() {
-	if handleCLIArgs() {
-		return
-	}
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error starting Martis TUI: %v\n", err)
-		os.Exit(1)
-	}
-}
-
 // Global version variable injected via -ldflags="-X main.version=..."
 var version = "dev"
 
@@ -910,27 +1096,46 @@ func handleCLIArgs() bool {
 	case "update", "--update":
 		fmt.Println("⚡ Memeriksa dan memperbarui Martis dari upstream...")
 		if _, err := os.Stat(".git"); err == nil {
-			fmt.Println("Repo git terdeteksi. Menjalankan sinkronisasi upstream via make update-upstream...")
+			fmt.Println("Repo git terdeteksi. Menjalankan make update-upstream...")
 			c := "make update-upstream"
-			parts := strings.Fields(c)
-			// Menjalankan make update-upstream
-			cmd := strings.Join(parts, " ")
-			fmt.Printf("Menjalankan: %s\n", cmd)
+			fmt.Printf("Menjalankan: %s\n", c)
 		} else {
 			fmt.Println("Untuk update langsung tanpa repositori lokal, gunakan:")
 			fmt.Println("  go install github.com/wahyuakbarwibowo/martis@latest")
 		}
 		return true
 
+	case "collections", "col":
+		col := loadCollections()
+		fmt.Printf("📁 Collections: %s (%d items)\n\n", col.Name, len(col.Items))
+		for i, it := range col.Items {
+			fmt.Printf("  %d. [%-6s] %-25s -> %s\n", i+1, it.Method, it.Name, it.URL)
+		}
+		return true
+
 	case "help", "-h", "--help":
 		fmt.Printf("Martis TUI - Ultra-Light REST Client (%s)\n\n", version)
 		fmt.Println("Penggunaan:")
-		fmt.Println("  martis           Buka Terminal User Interface")
-		fmt.Println("  martis version   Tampilkan versi aplikasi")
-		fmt.Println("  martis update    Perbarui aplikasi dari upstream")
-		fmt.Println("  martis help      Tampilkan bantuan ini")
+		fmt.Println("  martis             Buka Terminal User Interface")
+		fmt.Println("  martis collections Tampilkan daftar request di collection")
+		fmt.Println("  martis version     Tampilkan versi aplikasi")
+		fmt.Println("  martis update      Perbarui aplikasi dari upstream")
+		fmt.Println("  martis help        Tampilkan bantuan ini")
 		return true
 	}
 
 	return false
+}
+
+// --- Main Program ---
+func main() {
+	if handleCLIArgs() {
+		return
+	}
+
+	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Error starting Martis TUI: %v\n", err)
+		os.Exit(1)
+	}
 }
