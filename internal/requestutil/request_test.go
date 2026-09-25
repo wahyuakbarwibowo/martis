@@ -48,3 +48,15 @@ func TestCaptureJSONValues(t *testing.T) {
 		t.Fatalf("set lines must not fail assertions: %v", failed)
 	}
 }
+
+func TestJSONPathArraysAndObjects(t *testing.T) {
+	body := `{"data":[{"id":1,"tags":["a"]}]}`
+	if got, ok := JSONPath(body, "json.data.0.tags"); !ok || got != "[\n  \"a\"\n]" {
+		t.Fatalf("got %q ok=%v", got, ok)
+	}
+	for _, path := range []string{"json.data.1", "json.data.x", "json.data.0.id.deep"} {
+		if _, ok := JSONPath(body, path); ok {
+			t.Fatalf("%s should be missing", path)
+		}
+	}
+}

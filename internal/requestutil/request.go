@@ -120,20 +120,37 @@ func Assert(r domain.ResponseResult, script string) []string {
 	return failures
 }
 
-// jsonPath resolves "json.a.b" against a JSON body; nil when missing.
+// jsonPath resolves "json.a.0.b" against a JSON body; nil when missing.
 func jsonPath(body, path string) any {
 	var value any
 	if json.Unmarshal([]byte(body), &value) != nil {
 		return nil
 	}
 	for _, key := range strings.Split(strings.TrimPrefix(path, "json."), ".") {
-		object, ok := value.(map[string]any)
-		if !ok {
+		switch v := value.(type) {
+		case map[string]any:
+			value = v[key]
+		case []any:
+			i, err := strconv.Atoi(key)
+			if err != nil || i < 0 || i >= len(v) {
+				return nil
+			}
+			value = v[i]
+		default:
 			return nil
 		}
-		value = object[key]
 	}
 	return value
+}
+
+// JSONPath returns the pretty-printed value at "json.a.0.b", or false when missing.
+func JSONPath(body, path string) (string, bool) {
+	value := jsonPath(body, path)
+	if value == nil {
+		return "", false
+	}
+	b, _ := json.MarshalIndent(value, "", "  ")
+	return string(b), true
 }
 
 // Capture reads "set name = json.path" lines and returns the captured values.

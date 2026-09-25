@@ -2019,7 +2019,13 @@ func (m *Model) refreshResponse() {
 	if m.responseTab == 2 {
 		content = strings.Join(m.responseHeaders.Values("Set-Cookie"), "\n")
 	}
-	if m.responseSearch != "" {
+	if strings.HasPrefix(m.responseSearch, "json.") {
+		if value, ok := requestutil.JSONPath(m.responseBody, m.responseSearch); ok {
+			content = value
+		} else {
+			content = "No value at " + m.responseSearch
+		}
+	} else if m.responseSearch != "" {
 		var matches []string
 		for _, line := range strings.Split(content, "\n") {
 			if strings.Contains(strings.ToLower(line), strings.ToLower(m.responseSearch)) {
@@ -2043,7 +2049,7 @@ func (m Model) renderModal(background string) string {
 		body = m.modalInput.View() + "\nCtrl+Enter to import"
 	case modalSearch:
 		title = "Search Response"
-		body = m.modalInput.View() + "\nCtrl+Enter to filter • clear search with empty input"
+		body = m.modalInput.View() + "\nText or json.path (json.data.0.id) • Ctrl+Enter to filter • empty clears"
 	case modalBenchmark:
 		title = "Benchmark Runner"
 		body = m.modalInput.View() + "\nRequest count, maximum 1000. Ctrl+Enter to run"
