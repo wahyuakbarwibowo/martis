@@ -7,7 +7,7 @@ UPSTREAM_BRANCH ?= main
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS=-s -w -X main.version=$(VERSION)
 
-.PHONY: all build desktop desktop-run release release-windows install uninstall update-upstream self-update run clean tidy fmt vet test help
+.PHONY: all build desktop desktop-run desktop-app release release-windows install uninstall update-upstream self-update run clean tidy fmt vet test help
 
 all: build
 
@@ -26,6 +26,15 @@ desktop:
 ## desktop-run: Build lalu buka aplikasi desktop
 desktop-run: desktop
 	./$(BINARY_NAME)-desktop
+
+## desktop-app: Kemas Martis.app + .dmg ke dist/ (macOS) atau .deb (Linux)
+desktop-app: desktop
+	@if [ "$$(uname -s)" = Darwin ]; then \
+		scripts/package-macos.sh $(BINARY_NAME)-desktop "$(VERSION:v%=%)" "$$(go env GOARCH)" dist; \
+	else \
+		scripts/package-linux.sh $(BINARY_NAME)-desktop "$(VERSION:v%=%)" "$$(go env GOARCH)" dist; \
+	fi
+	@ls -lh dist/
 
 ## release: Compile release untuk semua platform (macOS, Linux, dan Windows)
 release: clean
