@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"martis/internal/httpclient"
 	"martis/internal/importer"
@@ -21,7 +22,32 @@ func HandleCLIArgs(version string) bool {
 	switch cmd {
 	case "import":
 		if len(os.Args) < 3 {
-			fmt.Println("Penggunaan: martis import <postman.json|openapi.json>")
+			fmt.Println("Penggunaan: martis import <postman.json|openapi.json|postman-env.json>")
+			return true
+		}
+		if name, dotenv, ok, err := importer.PostmanEnvironment(os.Args[2]); ok || err != nil {
+			if err != nil {
+				fmt.Printf("Gagal mengimpor environment: %v\n", err)
+				return true
+			}
+			if name == "" {
+				name = strings.TrimSuffix(filepath.Base(os.Args[2]), filepath.Ext(os.Args[2]))
+			}
+			dir := filepath.Join(repository.ConfigDir(), "environments")
+			target := filepath.Join(dir, filepath.Base(name)+".env")
+			if _, err := os.Stat(target); err == nil {
+				fmt.Printf("Environment %s sudah ada, tidak ditimpa\n", target)
+				return true
+			}
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				fmt.Printf("Gagal membuat folder environment: %v\n", err)
+				return true
+			}
+			if err := os.WriteFile(target, []byte(dotenv), 0600); err != nil {
+				fmt.Printf("Gagal menyimpan environment: %v\n", err)
+				return true
+			}
+			fmt.Printf("Berhasil mengimpor environment ke %s\n", target)
 			return true
 		}
 		incoming, err := importer.File(os.Args[2])
@@ -108,7 +134,7 @@ func HandleCLIArgs(version string) bool {
 		fmt.Println("  martis <url>       Buka TUI dengan URL tersebut")
 		fmt.Println("  martis curl ...    Buka TUI dengan request dari perintah cURL")
 		fmt.Println("  martis collections Tampilkan daftar request di collection")
-		fmt.Println("  martis import <file> Impor Postman v2 atau OpenAPI 3")
+		fmt.Println("  martis import <file> Impor Postman v2, OpenAPI 3, atau environment Postman")
 		fmt.Println("  martis run [--env <nama>] <folder>  Jalankan semua request di folder (exit 1 jika ada yang gagal)")
 		fmt.Println("  martis version     Tampilkan versi aplikasi")
 		fmt.Println("  martis update      Perbarui aplikasi dari upstream")

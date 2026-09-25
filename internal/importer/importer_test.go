@@ -36,3 +36,17 @@ func TestOpenAPIImport(t *testing.T) {
 		t.Fatalf("unexpected OpenAPI import: %#v", col)
 	}
 }
+
+func TestPostmanEnvironmentImport(t *testing.T) {
+	p := writeFixture(t, `{"name":"prod","values":[{"key":"token","value":"a b","enabled":true},{"key":"base","value":"https://api.test"},{"key":"off","value":"x","enabled":false},{"key":"port","value":8080}]}`)
+	name, dotenv, ok, err := PostmanEnvironment(p)
+	if err != nil || !ok || name != "prod" {
+		t.Fatalf("name=%q ok=%v err=%v", name, ok, err)
+	}
+	if dotenv != "base=\"https://api.test\"\nport=\"8080\"\ntoken=\"a b\"\n" {
+		t.Fatalf("unexpected dotenv %q", dotenv)
+	}
+	if _, _, ok, _ := PostmanEnvironment(writeFixture(t, `{"info":{"name":"Demo"},"item":[]}`)); ok {
+		t.Fatal("collection must not be detected as environment")
+	}
+}
