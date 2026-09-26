@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -1566,15 +1567,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case "ctrl+o":
-			ext := ".txt"
-			if strings.Contains(strings.ToLower(m.responseHeaders.Get("Content-Type")), "json") {
-				ext = ".json"
-			}
-			name := "response-" + time.Now().Format("20060102-150405") + ext
-			if err := os.WriteFile(name, []byte(m.responseBody), 0600); err != nil {
-				m.status = "save response: " + err.Error()
+			if path, err := m.downloadResponse(); err != nil {
+				m.status = "Download gagal: " + err.Error()
 			} else {
-				m.status = "Saved " + name
+				m.status = "Tersimpan di " + path
 			}
 			return m, nil
 		case "ctrl+b":
@@ -1843,7 +1839,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case FocusResponse:
-			if msg.String() == "enter" && len(m.responseBody) > largeResponseBytes && !m.showLargeBody {
+			if msg.String() == "enter" && !m.showLargeBody && m.bodyPrompt() != "" && utf8.ValidString(m.responseBody) {
 				m.showLargeBody = true
 				m.refreshResponse()
 				return m, nil
@@ -2112,6 +2108,47 @@ func (m Model) renderResponseViewer(width int) string {
 // largeResponseBytes is the body size above which the viewer asks before rendering.
 const largeResponseBytes = 1 << 20
 
+// bodyPrompt asks whether to download or show a large or file response; "" renders the body.
+func (m Model) bodyPrompt() string {
+	size := domain.FormatBytes(len(m.responseBody))
+	file, isFile := requestutil.DetectFile(m.responseHeaders, m.responseBody)
+	switch {
+	case isFile && !utf8.ValidString(m.responseBody):
+		return fmt.Sprintf("File %s · %s · %s\n\nIsi file tidak ditampilkan.\n\n[Ctrl+O] Download ke ~/Downloads/%s", file.Kind, file.Name, size, file.Name)
+	case isFile:
+		return fmt.Sprintf("File %s · %s · %s\n\n[Ctrl+O] Download ke ~/Downloads/%s\n[Enter]  Tampilkan sebagai teks", file.Kind, file.Name, size, file.Name)
+	case len(m.responseBody) > largeResponseBytes:
+		return fmt.Sprintf("Response besar (%s) tidak langsung ditampilkan agar TUI tetap ringan.\n\n[Ctrl+O] Download ke ~/Downloads\n[Enter]  Tampilkan\n[/]      Filter teks atau json.path", size)
+	}
+	return ""
+}
+
+// downloadResponse saves the raw response bytes to ~/Downloads (or the working
+// directory), using the server's file name and never overwriting a file.
+func (m Model) downloadResponse() (string, error) {
+	name := "response-" + time.Now().Format("20060102-150405") + ".txt"
+	if file, ok := requestutil.DetectFile(m.responseHeaders, m.responseBody); ok {
+		name = file.Name
+	} else if strings.Contains(strings.ToLower(m.responseHeaders.Get("Content-Type")), "json") {
+		name = strings.TrimSuffix(name, ".txt") + ".json"
+	}
+	dir := "."
+	if home, err := os.UserHomeDir(); err == nil {
+		if info, err := os.Stat(filepath.Join(home, "Downloads")); err == nil && info.IsDir() {
+			dir = filepath.Join(home, "Downloads")
+		}
+	}
+	path := filepath.Join(dir, name)
+	ext := filepath.Ext(name)
+	for i := 1; ; i++ {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			break
+		}
+		path = filepath.Join(dir, fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(name, ext), i, ext))
+	}
+	return path, os.WriteFile(path, []byte(m.responseBody), 0600)
+}
+
 func (m *Model) refreshResponse() {
 	if !m.viewportReady {
 		return
@@ -2122,8 +2159,10 @@ func (m *Model) refreshResponse() {
 	}
 	if m.responseTab == 0 && m.responseDiff {
 		content = requestutil.Diff(m.prevResponseBody, m.responseBody)
-	} else if m.responseTab == 0 && m.responseSearch == "" && len(content) > largeResponseBytes && !m.showLargeBody {
-		content = fmt.Sprintf("Response besar (%.1f MB) tidak langsung ditampilkan agar TUI tetap ringan.\n\n[Enter] Tampilkan tetap\n[/]     Filter teks atau json.path\n[Ctrl+O] Simpan ke file", float64(len(content))/(1<<20))
+	} else if m.responseTab == 0 && m.responseSearch == "" && !m.showLargeBody {
+		if prompt := m.bodyPrompt(); prompt != "" {
+			content = prompt
+		}
 	}
 	if m.responseTab == 1 {
 		content = formatResponseHeaders(m.responseHeaders)

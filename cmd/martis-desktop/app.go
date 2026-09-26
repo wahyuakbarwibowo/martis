@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -27,6 +29,9 @@ type App struct {
 	ctx    context.Context
 	mu     sync.Mutex
 	cancel context.CancelFunc // stops the request in flight (used for SSE)
+
+	lastBody string                   // raw bytes of the latest response, for downloads
+	lastFile requestutil.ResponseFile // download name when the response is a file
 }
 
 type Response struct {
@@ -40,6 +45,10 @@ type Response struct {
 	Failures   []string          `json:"failures"`
 	Captured   []string          `json:"captured"`
 	Stream     bool              `json:"stream"`
+	// File is set when the response is a document, archive, or media file.
+	File *requestutil.ResponseFile `json:"file"`
+	// Binary means Body was withheld: raw bytes cannot cross to the page intact.
+	Binary bool `json:"binary"`
 }
 
 func NewApp(version string) *App {
@@ -104,6 +113,18 @@ func (a *App) Send(p domain.RequestPayload, env string) Response {
 		out.Error = r.Err.Error()
 		return out
 	}
+	a.mu.Lock()
+	a.lastBody, a.lastFile = r.Body, requestutil.ResponseFile{Name: "response.txt"}
+	if file, ok := requestutil.DetectFile(r.Headers, r.Body); ok {
+		a.lastFile, out.File = file, &file
+		out.Binary = !utf8.ValidString(r.Body)
+		if out.Binary {
+			out.Body = ""
+		}
+	} else if strings.Contains(r.Headers.Get("Content-Type"), "json") {
+		a.lastFile.Name = "response.json"
+	}
+	a.mu.Unlock()
 	for k, v := range r.Headers {
 		out.Headers[k] = strings.Join(v, ", ")
 	}
@@ -118,6 +139,23 @@ func (a *App) Send(p domain.RequestPayload, env string) Response {
 	sort.Strings(out.Captured)
 	out.Failures = append(requestutil.Assert(r, p.Assertions), captureFailures...)
 	return out
+}
+
+// SaveResponse asks where to save the latest response and writes its raw bytes.
+// It returns the saved path, or "" when the user cancels.
+func (a *App) SaveResponse() (string, error) {
+	a.mu.Lock()
+	body, name := a.lastBody, a.lastFile.Name
+	a.mu.Unlock()
+	downloads := ""
+	if home, err := os.UserHomeDir(); err == nil {
+		downloads = filepath.Join(home, "Downloads")
+	}
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{DefaultDirectory: downloads, DefaultFilename: name, Title: "Download response"})
+	if err != nil || path == "" {
+		return "", err
+	}
+	return path, os.WriteFile(path, []byte(body), 0600)
 }
 
 // JSONPath filters a response body, mirroring the TUI's json.path search.

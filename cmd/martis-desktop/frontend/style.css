@@ -153,3 +153,5 @@ button { cursor: default; border: 0; background: none; border-radius: 6px; paddi
 .editor.vars { flex: 0 0 30%; }
 .primary.stop { background: var(--err); color: var(--bright); }
 .output .event { display: block; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.notice .primary { margin-right: 6px; }
+.notice .kind { color: var(--bright); font-weight: 600; }

@@ -235,8 +235,17 @@ async function renderOutput() {
     out.textContent = r.body.split("\n").filter((l) => l.toLowerCase().includes(q)).join("\n");
     return;
   }
-  if (r.size > LARGE && !state.showLarge) {
-    $("large-text").textContent = `This response is ${formatBytes(r.size)}. Rendering it may slow the window; filter with json.path or show it anyway.`;
+  // Files and large bodies ask first: download, or show (text only).
+  if ((r.file || r.size > LARGE) && !state.showLarge) {
+    const text = $("large-text");
+    text.textContent = "";
+    if (r.file) {
+      text.append(el("span", "kind", [`${r.file.kind} file`]), ` · ${r.file.name} · ${formatBytes(r.size)}`);
+      if (r.binary) text.append(document.createElement("br"), "Binary content is not shown. Download it to open.");
+    } else {
+      text.append(`This response is ${formatBytes(r.size)}. Rendering it may slow the window; download it, filter with json.path, or show it.`);
+    }
+    $("show-large").hidden = r.binary;
     $("large").hidden = false;
     out.textContent = "";
     return;
@@ -322,6 +331,14 @@ window.runtime?.EventsOn("sse", onEvent);
 $("new-request").onclick = newRequest;
 $("tree-filter").oninput = renderTree;
 $("show-large").onclick = () => { state.showLarge = true; renderOutput(); };
+$("download").onclick = async () => {
+  try {
+    const path = await api.SaveResponse();
+    if (path) flash(`Saved to ${path}`);
+  } catch (e) {
+    flash(`Download failed: ${e}`, true);
+  }
+};
 $("url").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
 let filterTimer;
 $("filter").oninput = () => { clearTimeout(filterTimer); filterTimer = setTimeout(renderOutput, 150); };
