@@ -114,6 +114,38 @@ type Folder struct {
 	Name       string           `json:"name"`
 	IsExpanded bool             `json:"is_expanded"`
 	Items      []CollectionItem `json:"items"`
+	Folders    []Folder         `json:"folders,omitempty"`
+}
+
+// FolderRef menunjuk satu folder di pohon collection beserta posisinya.
+type FolderRef struct {
+	*Folder
+	Depth  int
+	Path   string // nama lengkap, contoh "API / Users"
+	parent *[]Folder
+	index  int
+}
+
+// Remove menghapus folder ini (beserta isinya) dari induknya.
+func (r FolderRef) Remove() {
+	*r.parent = append((*r.parent)[:r.index], (*r.parent)[r.index+1:]...)
+}
+
+// FlatFolders mengembalikan semua folder secara depth-first (pre-order).
+// Pointer valid sampai slice Folders mana pun diubah.
+func (c *Collection) FlatFolders() []FolderRef {
+	var out []FolderRef
+	var walk func(*[]Folder, int, string)
+	walk = func(list *[]Folder, depth int, prefix string) {
+		for i := range *list {
+			f := &(*list)[i]
+			ref := FolderRef{Folder: f, Depth: depth, Path: prefix + f.Name, parent: list, index: i}
+			out = append(out, ref)
+			walk(&f.Folders, depth+1, ref.Path+" / ")
+		}
+	}
+	walk(&c.Folders, 0, "")
+	return out
 }
 
 // Collection merepresentasikan workspace kumpulan folder
