@@ -3,6 +3,7 @@ package importer
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -59,5 +60,20 @@ func TestIDUnique(t *testing.T) {
 			t.Fatalf("duplicate id %s", v)
 		}
 		seen[v] = true
+	}
+}
+
+func TestPostmanImportKeepsNestedFolders(t *testing.T) {
+	p := writeFixture(t, `{"info":{"name":"Demo"},"item":[{"name":"API","item":[{"name":"Users","item":[{"name":"List users","request":{"method":"GET","url":"https://api.test/users"}}]}]},{"name":"Ping","request":{"method":"GET","url":"https://api.test/ping"}}]}`)
+	col, err := File(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, f := range col.FlatFolders() {
+		paths = append(paths, f.Path)
+	}
+	if strings.Join(paths, ",") != "API,API / Users,Imported" || len(col.Folders[0].Folders[0].Items) != 1 {
+		t.Fatalf("unexpected folders %v", paths)
 	}
 }
