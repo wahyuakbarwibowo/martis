@@ -1,34 +1,47 @@
 <div align="center">
 
-<img src="assets/martis.png" alt="Martis MLBB" width="130" style="border-radius: 50%; box-shadow: 0 4px 12px rgba(125, 86, 244, 0.4);" />
+<img src="cmd/martis-desktop/icon.png" alt="Martis" width="112" />
 
-# ⚡ Martis
+# Martis
 
-**Ultra-lightweight, blazing-fast Terminal User Interface (TUI) REST client.**  
-*"3,000 worlds, and not a single worthy API client... until now."*
+**Lightweight REST client for macOS and Linux.**
+A native desktop app and a terminal UI that share the same collections, built with Go. No Electron.
 
-[![Go Version](https://img.shields.io/github/go-mod/go-version/wahyuakbarwibowo/martis?color=00ADD8)](https://golang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/wahyuakbarwibowo/martis?color=7D56F4)](https://github.com/wahyuakbarwibowo/martis/releases)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue)](https://github.com/wahyuakbarwibowo/martis/releases)
+[![Release](https://img.shields.io/github/v/release/wahyuakbarwibowo/martis?color=4ade80)](https://github.com/wahyuakbarwibowo/martis/releases/latest)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/wahyuakbarwibowo/martis?color=00ADD8)](https://go.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
+
+<img src="docs/desktop.png" alt="Martis Desktop" width="860" />
 
 </div>
 
----
-
-## 🌟 Highlights
-
-- 📁 **Collections & Persistence**: Simpan request endpoint ke Collection lokal (`~/martis/collections.json`), muat ulang kapan saja, atau hapus request lama.
-- ⚔️ **Ashura King of REST Clients**: Menaklukkan ribuan request endpoint dengan kecepatan instan dan memory footprint super hemat (< 20MB RAM).
-- 🖥️ **Split-Screen Responsive**: Request Builder di panel kiri dan Response Viewer di panel kanan.
-- ⌨️ **Keyboard First**: Navigasi intuitif menggunakan tombol `Tab`, `Shift+Tab`, dan shortcut tanpa perlu mouse.
-- 📡 **Built-in Async Engine**: Eksekusi HTTP non-blocking menggunakan native goroutines dan Go standard library `net/http`.
-- 🎨 **Beautiful Formatting**: Dilengkapi status code badges Lipgloss, pretty-printed JSON body, metadata latency, dan size metrics.
-- 📦 **Cross-Platform**: Binary mandiri siap jalan untuk macOS (Apple Silicon & Intel), Linux, dan Windows.
+```bash
+curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | MARTIS_DESKTOP=1 bash
+```
 
 ---
 
-## 🚀 Instalasi
+## Highlights
+
+- **Dua aplikasi, satu data**: Martis Desktop untuk kerja sehari-hari, TUI untuk terminal dan SSH. Collection dan environment tersimpan di `~/martis`.
+- **Ringan**: desktop memakai webview bawaan sistem (unduhan ±4 MB), TUI satu binary statis tanpa dependensi.
+- **Request berantai**: simpan nilai response ke variabel (`set token = json.access_token`) lalu pakai `{{token}}` di request berikutnya.
+- **Environment & variabel**: file `.env` per environment, `{{variable}}` di URL, header, dan body.
+- **Alat bantu response**: format JSON, filter `json.path`, diff dengan response sebelumnya, assertion (`Status == 200`).
+- **Import**: Postman collection & environment, OpenAPI 3, dan perintah cURL; export ke cURL.
+- **Siap CI**: `martis run --env prod <folder>` menjalankan satu folder dan gagal bila ada assertion yang tidak lolos.
+- **Update satu perintah**: `martis update`.
+
+<details>
+<summary>Tampilan TUI</summary>
+
+<img src="docs/tui.png" alt="Martis TUI" width="860" />
+
+</details>
+
+---
+
+## Instalasi
 
 Martis hadir dalam dua bentuk yang berbagi data yang sama (`~/martis`):
 
@@ -85,7 +98,7 @@ Build desktop butuh Xcode Command Line Tools di macOS, atau `libgtk-3-dev` + `li
 
 ---
 
-## ▶️ Cara Membuka
+## Cara Membuka
 
 ### Martis Desktop
 
@@ -107,7 +120,7 @@ Keluar dengan `q` atau `Ctrl+C`. Semua shortcut TUI ada di bagian Keyboard Short
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Shortcut | Aksi |
 |---|---|
@@ -139,7 +152,7 @@ Keluar dengan `q` atau `Ctrl+C`. Semua shortcut TUI ada di bagian Keyboard Short
 
 ---
 
-## 🛠️ CLI Commands
+## CLI Commands
 
 ```bash
 martis             # Buka antarmuka TUI
@@ -155,7 +168,7 @@ martis help        # Tampilkan ringkasan bantuan
 
 ---
 
-## 🗺️ Roadmap & Kontribusi
+## Roadmap & Kontribusi
 Pada tab Form-Data, isi satu baris per field (`name=value`) atau file (`@avatar=/path/to/avatar.png`). Impor cURL mendukung method, URL, headers, autentikasi dasar, body file (`--data-binary @file`), dan banyak field form-data/file (termasuk atribut MIME seperti `;type=image/png`). Pada macOS, tekan `Ctrl+F` atau klik editor file untuk membuka Finder dan memilih file lokal; platform lain memakai picker internal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body.
 
 Tab Assertions menerima satu baris per aturan:
@@ -172,5 +185,5 @@ Kontribusi dan pull request selalu disambut dengan baik!
 
 ---
 
-## 📄 Lisensi
+## Lisensi
 Didistribusikan di bawah lisensi [MIT](LICENSE).
