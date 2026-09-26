@@ -1335,6 +1335,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// View has a title, panel border, tree heading and help line above
 				// the first row. Keep this aligned with renderSidebar's layout.
 				clickedRow := msg.Y - 4
+				if clickedRow < m.sidebarVisibleRows() {
+					clickedRow += m.sidebarOffset()
+				} else {
+					clickedRow = -1
+				}
 				if clickedRow >= 0 && clickedRow < len(m.sidebarRows) {
 					m.selectedTreeIndex = clickedRow
 					m.focus = FocusSidebar
@@ -1969,12 +1974,27 @@ func listRow(text string, selected bool) string {
 	return " " + text
 }
 
+// sidebarVisibleRows is how many tree rows fit under the sidebar heading.
+func (m Model) sidebarVisibleRows() int {
+	return max(10, m.height-6) - 2
+}
+
+// sidebarOffset pages the tree so the selected row is always on screen.
+// ponytail: page jumps instead of smooth scrolling; add a stored offset if it feels jumpy.
+func (m Model) sidebarOffset() int {
+	visible := m.sidebarVisibleRows()
+	return m.selectedTreeIndex / visible * visible
+}
+
 func (m Model) renderSidebar(width int) string {
 	lines := []string{
 		styles.Muted.Bold(true).Render(" COLLECTIONS"),
 		styles.Faint.Render(" click or ↑/↓ enter"),
 	}
-	for i, row := range m.sidebarRows {
+	offset := m.sidebarOffset()
+	end := min(len(m.sidebarRows), offset+m.sidebarVisibleRows())
+	for i := offset; i < end; i++ {
+		row := m.sidebarRows[i]
 		selected := i == m.selectedTreeIndex && m.focus == FocusSidebar
 		text := strings.Repeat("  ", row.depth)
 		if row.rowType == rowFolder {
