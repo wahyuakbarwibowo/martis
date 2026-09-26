@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Martis Docs</title>
+  <meta name="description" content="Dokumentasi Martis, REST client ringan untuk macOS dan Linux: aplikasi desktop dan TUI dalam satu, dibuat dengan Go.">
+  <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="menu" id="menu" aria-label="Menu" aria-expanded="false">Menu</button>
+    <a class="logo" href="#"><img src="icon.png" alt="">Martis</a>
+    <div class="spacer"></div>
+    <a class="plain wide" href="https://github.com/wahyuakbarwibowo/martis/releases/latest">Releases</a>
+    <a class="plain" href="https://github.com/wahyuakbarwibowo/martis">GitHub</a>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" id="toc">
+      <p>Mulai</p>
+      <a href="#pengenalan">Pengenalan</a>
+      <a href="#instalasi">Instalasi</a>
+      <a href="#membuka">Cara membuka</a>
+      <a href="#update">Update</a>
+      <p>Panduan</p>
+      <a href="#request">Membuat request</a>
+      <a href="#environment">Environment &amp; variabel</a>
+      <a href="#tests">Tests &amp; request berantai</a>
+      <a href="#response">Alat bantu response</a>
+      <a href="#import">Import &amp; export</a>
+      <a href="#ci">Menjalankan di CI</a>
+      <p>Referensi</p>
+      <a href="#shortcut-desktop">Shortcut desktop</a>
+      <a href="#shortcut-tui">Shortcut TUI</a>
+      <a href="#cli">Perintah CLI</a>
+      <a href="#data">Lokasi data</a>
+      <p>Proyek</p>
+      <a href="#kontribusi">Kontribusi</a>
+      <a href="#catatan">Catatan</a>
+    </nav>
+
+    <main>
+      <section id="pengenalan">
+        <div class="hero">
+          <div>
+            <h1>Martis</h1>
+            <p class="lead">REST client ringan untuk macOS dan Linux. Aplikasi desktop dan TUI terminal dalam satu, berbagi collection yang sama. Dibuat dengan Go, tanpa Electron.</p>
+            <p class="quote">"3,000 worlds, and not a single worthy API client... until now."</p>
+          </div>
+          <img class="hero-img" src="hero.png" alt="Martis">
+        </div>
+        <div class="actions">
+          <a class="btn primary" href="#instalasi">Pasang Martis</a>
+          <a class="btn" href="https://github.com/wahyuakbarwibowo/martis/releases/latest">Unduh rilis</a>
+          <a class="btn" href="https://github.com/wahyuakbarwibowo/martis">Source code</a>
+        </div>
+        <img class="shot" src="desktop.png" alt="Tampilan Martis Desktop">
+
+        <div class="grid">
+          <div class="card"><b>Dua aplikasi, satu data</b><span>Desktop untuk kerja harian, TUI untuk terminal dan SSH. Semua tersimpan di <code>~/martis</code>.</span></div>
+          <div class="card"><b>Ringan</b><span>Desktop memakai webview bawaan sistem (unduhan ±4 MB). TUI satu binary statis.</span></div>
+          <div class="card"><b>Request berantai</b><span>Simpan nilai response ke variabel lalu pakai di request berikutnya.</span></div>
+          <div class="card"><b>Siap CI</b><span><code>martis run</code> menjalankan satu folder dan gagal bila ada test yang tidak lolos.</span></div>
+        </div>
+      </section>
+
+      <section id="instalasi">
+        <h2>Instalasi</h2>
+        <h3>macOS (disarankan)</h3>
+        <p>Pasang TUI dan aplikasi desktop sekaligus. Gratis, tanpa peringatan Gatekeeper, dan Martis langsung bisa dicari lewat Spotlight.</p>
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | MARTIS_DESKTOP=1 bash</code></pre>
+        <p>Skrip memasang <code>Martis.app</code> ke <code>/Applications</code> (atau <code>~/Applications</code> tanpa akses admin), serta <code>martis</code> dan <code>martis-desktop</code> ke PATH. Jalankan dari aplikasi terminal biasa agar <code>sudo</code> bisa meminta password.</p>
+        <p><b>Alternatif .dmg:</b> unduh <code>Martis_&lt;versi&gt;_arm64.dmg</code> (Apple Silicon) atau <code>_amd64.dmg</code> (Intel) dari <a href="https://github.com/wahyuakbarwibowo/martis/releases/latest">Releases</a>, lalu seret Martis ke Applications. Aplikasi belum dinotarisasi Apple, jadi saat pertama dibuka klik kanan <b>Martis → Open</b>.</p>
+
+        <h3>Linux</h3>
+        <p>Debian/Ubuntu: unduh <code>martis-desktop_&lt;versi&gt;_amd64.deb</code> atau <code>_arm64.deb</code>, lalu:</p>
+        <pre><code>sudo apt install ./martis-desktop_*.deb</code></pre>
+        <p>Distro lain: pakai skrip yang sama seperti macOS. Martis akan muncul di menu aplikasi. Aplikasi desktop butuh WebKitGTK 4.1 (<code>libwebkit2gtk-4.1-0</code> di Debian/Ubuntu, <code>webkit2gtk4.1</code> di Fedora).</p>
+
+        <h3>TUI saja</h3>
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | bash</code></pre>
+        <p>Binary TUI untuk Windows tersedia di halaman Releases. Alternatif lain: <code>go install github.com/wahyuakbarwibowo/martis@latest</code>.</p>
+        <p>Opsi skrip: <code>VERSION=v0.7.0</code> untuk versi tertentu, <code>INSTALL_DIR=...</code> untuk lokasi lain. Setiap unduhan diverifikasi dengan checksum.</p>
+
+        <h3>Dari source</h3>
+        <pre><code>git clone https://github.com/wahyuakbarwibowo/martis.git
+cd martis
+make install       <span class="c"># pasang TUI</span>
+make desktop-run   <span class="c"># build lalu buka aplikasi desktop (butuh CGO)</span>
+make desktop-app   <span class="c"># kemas Martis.app + .dmg (macOS) atau .deb (Linux)</span></code></pre>
+      </section>
+
+      <section id="membuka">
+        <h2>Cara membuka</h2>
+        <h3>Martis Desktop</h3>
+        <ul>
+          <li><b>macOS:</b> tekan <kbd>⌘</kbd> <kbd>Space</kbd>, ketik <b>Martis</b>, Enter. Bisa juga dari Launchpad, Dock, atau <code>martis-desktop</code> di terminal.</li>
+          <li><b>Linux:</b> cari <b>Martis</b> di menu aplikasi, atau jalankan <code>martis-desktop</code>.</li>
+        </ul>
+        <h3>TUI</h3>
+        <pre><code>martis                                  <span class="c"># buka TUI</span>
+martis https://api.example.com/users    <span class="c"># langsung dengan URL ini</span>
+martis curl -H 'Accept: application/json' https://api.example.com</code></pre>
+        <p>Keluar dengan <kbd>q</kbd> atau <kbd>Ctrl</kbd> <kbd>C</kbd>.</p>
+        <img class="shot" src="tui.png" alt="Tampilan Martis TUI">
+      </section>
+
+      <section id="update">
+        <h2>Update</h2>
+        <pre><code>martis update</code></pre>
+        <p>Mengecek versi terbaru, berhenti bila sudah terbaru, lalu memasang ulang di lokasi yang sama. Aplikasi desktop ikut diperbarui bila terpasang. <code>martis upgrade</code> juga bisa dipakai.</p>
+      </section>
+
+      <section id="request">
+        <h2>Membuat request</h2>
+        <p>Pilih method, isi URL, lalu kirim dengan <kbd>⌘</kbd> <kbd>↵</kbd> (desktop) atau <kbd>Ctrl</kbd> <kbd>S</kbd> (TUI). Tab yang tersedia:</p>
+        <ul>
+          <li><b>Body</b>: JSON mentah. Rapikan dengan <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>F</kbd> (desktop) atau <kbd>F4</kbd> (TUI).</li>
+          <li><b>Headers</b>: satu baris per header, format <code>Key: Value</code>.</li>
+          <li><b>Tests</b>: assertion dan pengambilan variabel (lihat <a href="#tests">Tests</a>).</li>
+          <li>Khusus TUI: <b>Form</b> untuk multipart (<code>field=value</code>, <code>@file=/path</code>), <b>Query</b> yang sinkron dengan URL, dan <b>Auth</b> dengan preset Bearer, Basic, API key, dan OAuth 2.0 (<kbd>F3</kbd>).</li>
+        </ul>
+        <p>Simpan request ke collection dengan <kbd>⌘</kbd> <kbd>S</kbd> (desktop) atau <kbd>Ctrl</kbd> <kbd>E</kbd> (TUI).</p>
+      </section>
+
+      <section id="environment">
+        <h2>Environment &amp; variabel</h2>
+        <p>Buat file <code>.env</code> di <code>~/martis/environments/</code>, satu file per environment:</p>
+        <pre><code><span class="c"># ~/martis/environments/local.env</span>
+base_url=http://localhost:8080
+token="rahasia"</code></pre>
+        <p>Pakai <code>{{base_url}}</code> atau <code>{{token}}</code> di URL, header, body, maupun auth. Pilih environment aktif lewat dropdown <b>env</b> (desktop) atau <kbd>Ctrl</kbd> <kbd>G</kbd> (TUI).</p>
+      </section>
+
+      <section id="tests">
+        <h2>Tests &amp; request berantai</h2>
+        <p>Tulis satu aturan per baris di tab Tests:</p>
+        <pre><code>Status == 200
+json.data.id != nil
+set token = json.access_token</code></pre>
+        <ul>
+          <li><code>Status == N</code> memeriksa kode status.</li>
+          <li><code>json.path != nil</code> memastikan field ada. Path mendukung index array, misalnya <code>json.items.0.id</code>.</li>
+          <li><code>set nama = json.path</code> menyimpan nilai ke environment aktif, sehingga request berikutnya bisa memakai <code>{{nama}}</code>.</li>
+        </ul>
+        <div class="note"><b>Contoh alur login:</b> request <code>POST /login</code> berisi <code>set token = json.access_token</code>, lalu request lain memakai header <code>Authorization: Bearer {{token}}</code>. Nilai yang ditangkap berlaku selama sesi berjalan.</div>
+      </section>
+
+      <section id="response">
+        <h2>Alat bantu response</h2>
+        <ul>
+          <li><b>Format otomatis</b>: response JSON selalu ditampilkan rapi.</li>
+          <li><b>Filter</b>: ketik teks untuk mencari baris, atau <code>json.data.0.name</code> untuk mengambil nilai tertentu. Tombol <kbd>⌘</kbd> <kbd>F</kbd> (desktop) atau <kbd>/</kbd> (TUI).</li>
+          <li><b>Diff</b>: bandingkan dengan response sukses sebelumnya lewat <kbd>⌘</kbd> <kbd>D</kbd> atau <kbd>Ctrl</kbd> <kbd>D</kbd>.</li>
+          <li><b>Response besar</b>: di atas 1 MB, Martis meminta konfirmasi sebelum menampilkan agar tetap ringan. Di TUI, simpan ke file dengan <kbd>Ctrl</kbd> <kbd>O</kbd>.</li>
+        </ul>
+      </section>
+
+      <section id="import">
+        <h2>Import &amp; export</h2>
+        <pre><code>martis import collection.json       <span class="c"># Postman v2 atau OpenAPI 3</span>
+martis import staging.postman_environment.json   <span class="c"># environment Postman → ~/martis/environments</span></code></pre>
+        <p>Di TUI, <kbd>Ctrl</kbd> <kbd>I</kbd> mengimpor perintah cURL dari clipboard dan <kbd>Ctrl</kbd> <kbd>X</kbd> mengekspor request aktif sebagai cURL.</p>
+      </section>
+
+      <section id="ci">
+        <h2>Menjalankan di CI</h2>
+        <pre><code>martis run --env staging Auth</code></pre>
+        <p>Menjalankan semua request di folder <b>Auth</b> secara berurutan, meneruskan variabel hasil <code>set</code>, lalu keluar dengan kode <code>1</code> bila ada request atau test yang gagal (<code>2</code> untuk kesalahan pemakaian).</p>
+      </section>
+
+      <section id="shortcut-desktop">
+        <h2>Shortcut desktop</h2>
+        <p>Di Linux, gunakan <kbd>Ctrl</kbd> sebagai pengganti <kbd>⌘</kbd>.</p>
+        <table>
+          <tr><th>Shortcut</th><th>Aksi</th></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>↵</kbd></td><td>Kirim request</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>S</kbd></td><td>Simpan ke collection</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>N</kbd></td><td>Request baru</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>F</kbd></td><td>Filter response</td></tr>
+          <tr><td><kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>F</kbd></td><td>Rapikan body JSON</td></tr>
+          <tr><td><kbd>⌘</kbd> <kbd>D</kbd></td><td>Diff dengan response sebelumnya</td></tr>
+        </table>
+      </section>
+
+      <section id="shortcut-tui">
+        <h2>Shortcut TUI</h2>
+        <table>
+          <tr><th>Shortcut</th><th>Aksi</th></tr>
+          <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd> <kbd>Tab</kbd></td><td>Pindah fokus</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>S</kbd></td><td>Kirim request</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>E</kbd></td><td>Simpan ke collection</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>P</kbd></td><td>Buka daftar collection</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>N</kbd></td><td>Buat folder</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>T</kbd></td><td>Ganti tab konfigurasi</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>H</kbd></td><td>History request</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>G</kbd></td><td>Pilih environment</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>I</kbd> / <kbd>Ctrl</kbd> <kbd>X</kbd></td><td>Import / export cURL</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>F</kbd></td><td>Pilih file (tab Form)</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Filter teks atau <code>json.path</code></td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>D</kbd></td><td>Diff response</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>Y</kbd> / <kbd>Ctrl</kbd> <kbd>O</kbd></td><td>Salin / simpan response</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>B</kbd></td><td>Benchmark request</td></tr>
+          <tr><td><kbd>F2</kbd> / <kbd>F3</kbd> / <kbd>F4</kbd></td><td>Tema / preset auth / rapikan body JSON</td></tr>
+          <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Ganti method</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>j</kbd> <kbd>k</kbd></td><td>Scroll response atau navigasi sidebar</td></tr>
+          <tr><td><kbd>r</kbd> / <kbd>m</kbd> / <kbd>d</kbd></td><td>Rename / pindahkan / hapus item sidebar</td></tr>
+          <tr><td><kbd>q</kbd> / <kbd>Ctrl</kbd> <kbd>C</kbd></td><td>Keluar</td></tr>
+        </table>
+      </section>
+
+      <section id="cli">
+        <h2>Perintah CLI</h2>
+        <table>
+          <tr><th>Perintah</th><th>Fungsi</th></tr>
+          <tr><td><code>martis</code></td><td>Buka TUI</td></tr>
+          <tr><td><code>martis &lt;url&gt;</code> / <code>martis curl ...</code></td><td>Buka TUI dengan request tersebut</td></tr>
+          <tr><td><code>martis run [--env nama] &lt;folder&gt;</code></td><td>Jalankan satu folder tanpa UI</td></tr>
+          <tr><td><code>martis import &lt;file&gt;</code></td><td>Import Postman, OpenAPI, atau environment Postman</td></tr>
+          <tr><td><code>martis collections</code></td><td>Tampilkan isi collection</td></tr>
+          <tr><td><code>martis update</code></td><td>Perbarui ke rilis terbaru</td></tr>
+          <tr><td><code>martis version</code> / <code>martis help</code></td><td>Versi / bantuan</td></tr>
+          <tr><td><code>martis-desktop</code></td><td>Buka aplikasi desktop</td></tr>
+        </table>
+      </section>
+
+      <section id="data">
+        <h2>Lokasi data</h2>
+        <table>
+          <tr><th>Path</th><th>Isi</th></tr>
+          <tr><td><code>~/martis/collections.json</code></td><td>Folder dan request tersimpan</td></tr>
+          <tr><td><code>~/martis/history.json</code></td><td>100 request terakhir (TUI)</td></tr>
+          <tr><td><code>~/martis/environments/*.env</code></td><td>File environment</td></tr>
+        </table>
+        <p>Request yang tersimpan bisa berisi token, jadi jangan membagikan folder ini sembarangan.</p>
+      </section>
+
+      <section id="kontribusi">
+        <h2>Kontribusi</h2>
+        <p>Laporan bug, ide, dan pull request sangat disambut. Baca <a href="https://github.com/wahyuakbarwibowo/martis/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>, lalu <a href="https://github.com/wahyuakbarwibowo/martis/issues/new/choose">buka issue</a>. Celah keamanan dilaporkan secara privat lewat <a href="https://github.com/wahyuakbarwibowo/martis/security/advisories/new">Security advisories</a>.</p>
+      </section>
+
+      <section id="catatan">
+        <h2>Catatan</h2>
+        <p>Martis adalah proyek iseng untuk belajar dan dipakai sendiri, bukan produk komersial dan tidak akan dikomersialkan. Nama dan gambar hero terinspirasi dari karakter Martis di <i>Mobile Legends: Bang Bang</i>, milik Moonton; proyek ini tidak berafiliasi dengan Moonton.</p>
+      </section>
+
+      <footer>Martis · Lisensi MIT · <a href="https://github.com/wahyuakbarwibowo/martis">GitHub</a></footer>
+    </main>
+  </div>
+
+  <script>
+    // Copy buttons on code blocks, and the mobile table-of-contents toggle.
+    document.querySelectorAll("pre").forEach((pre) => {
+      const btn = document.createElement("button");
+      btn.className = "copy";
+      btn.textContent = "Copy";
+      btn.onclick = async () => {
+        const text = pre.querySelector("code").innerText.replace(/\s+#.*$/gm, "");
+        try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+        catch { btn.textContent = "Gagal"; }
+        setTimeout(() => (btn.textContent = "Copy"), 1500);
+      };
+      pre.append(btn);
+    });
+    const toc = document.getElementById("toc");
+    const menu = document.getElementById("menu");
+    const setOpen = (open) => { toc.classList.toggle("open", open); menu.setAttribute("aria-expanded", open); };
+    menu.onclick = () => setOpen(!toc.classList.contains("open"));
+    toc.addEventListener("click", (e) => { if (e.target.tagName === "A") setOpen(false); });
+  </script>
+</body>
+</html>

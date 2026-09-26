@@ -21,6 +21,8 @@ A native desktop app and a terminal UI that share the same collections, built wi
 curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | MARTIS_DESKTOP=1 bash
 ```
 
+Dokumentasi lengkap: **https://wahyuakbarwibowo.github.io/martis/**
+
 ---
 
 ## Highlights
