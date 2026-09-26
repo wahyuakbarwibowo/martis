@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"martis/internal/domain"
 	"martis/internal/environment"
@@ -19,6 +23,10 @@ type App struct {
 	client httpclient.Client
 	// captured holds "set name = json.path" values per environment for this session.
 	captured map[string]map[string]string
+
+	ctx    context.Context
+	mu     sync.Mutex
+	cancel context.CancelFunc // stops the request in flight (used for SSE)
 }
 
 type Response struct {
@@ -31,6 +39,7 @@ type Response struct {
 	Error      string            `json:"error"`
 	Failures   []string          `json:"failures"`
 	Captured   []string          `json:"captured"`
+	Stream     bool              `json:"stream"`
 }
 
 func NewApp(version string) *App {
@@ -38,6 +47,17 @@ func NewApp(version string) *App {
 		repo:     repository.NewFileCollectionRepository(),
 		client:   httpclient.NewClient("Martis-Desktop/" + version),
 		captured: map[string]map[string]string{},
+	}
+}
+
+func (a *App) startup(ctx context.Context) { a.ctx = ctx }
+
+// StopStream cancels the request in flight, ending an open event stream.
+func (a *App) StopStream() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.cancel != nil {
+		a.cancel()
 	}
 }
 
@@ -72,8 +92,14 @@ func (a *App) Send(p domain.RequestPayload, env string) Response {
 	if err != nil {
 		return Response{Error: err.Error()}
 	}
-	r := a.client.Do(prepared)
-	out := Response{Status: r.StatusCode, StatusText: http.StatusText(r.StatusCode), DurationMs: r.Duration.Milliseconds(), Size: len(r.Body), Body: r.Body, Headers: map[string]string{}}
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.mu.Lock()
+	a.cancel = cancel
+	a.mu.Unlock()
+	defer cancel()
+	// Each SSE event is pushed to the page as it arrives.
+	r := httpclient.Stream(ctx, a.client, prepared, func(event string) { runtime.EventsEmit(a.ctx, "sse", event) })
+	out := Response{Stream: httpclient.IsEventStream(r.Headers), Status: r.StatusCode, StatusText: http.StatusText(r.StatusCode), DurationMs: r.Duration.Milliseconds(), Size: len(r.Body), Body: r.Body, Headers: map[string]string{}}
 	if r.Err != nil {
 		out.Error = r.Err.Error()
 		return out

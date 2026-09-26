@@ -39,12 +39,23 @@
       <button class="tab active" data-tab="body">Body</button>
       <button class="tab" data-tab="headers">Headers</button>
       <button class="tab" data-tab="tests">Tests</button>
+      <select id="bodytype" class="bodytype" title="Body type">
+        <option value="raw">JSON</option>
+        <option value="graphql">GraphQL</option>
+      </select>
       <div class="spacer"></div>
       <button id="format" class="ghost" title="Format JSON body">Format <kbd>⇧⌘F</kbd></button>
       <input id="name" class="name" placeholder="Request name" spellcheck="false">
       <button id="save" class="ghost">Save <kbd>⌘S</kbd></button>
     </div>
-    <textarea class="editor pane" data-pane="body" id="body" spellcheck="false" placeholder='{ "hello": "world" }'></textarea>
+    <div class="pane body-pane" data-pane="body">
+      <textarea class="editor" id="body" spellcheck="false" placeholder='{ "hello": "world" }'></textarea>
+      <div class="gql" id="gql-pane" hidden>
+        <textarea class="editor" id="gql" spellcheck="false" placeholder="query ($id: ID!) {&#10;  user(id: $id) { name }&#10;}"></textarea>
+        <div class="gql-label">Variables</div>
+        <textarea class="editor vars" id="gqlvars" spellcheck="false" placeholder='{ "id": "{{user_id}}" }'></textarea>
+      </div>
+    </div>
     <textarea class="editor pane" data-pane="headers" id="headers" spellcheck="false" placeholder="Content-Type: application/json&#10;Authorization: Bearer {{token}}" hidden></textarea>
     <textarea class="editor pane" data-pane="tests" id="tests" spellcheck="false" placeholder="Status == 200&#10;json.id != nil&#10;set token = json.access_token" hidden></textarea>
   </main>
