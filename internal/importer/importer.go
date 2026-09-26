@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"martis/internal/domain"
@@ -159,4 +160,8 @@ func stringValue(v any, fallback string) string {
 	}
 	return fallback
 }
-func id() string { return fmt.Sprintf("import-%d", time.Now().UnixNano()) }
+
+var idSeq atomic.Uint64
+
+// id stays unique even when several calls share the same clock tick.
+func id() string { return fmt.Sprintf("import-%d-%d", time.Now().UnixNano(), idSeq.Add(1)) }
