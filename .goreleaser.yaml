@@ -17,3 +17,37 @@ archives:
 
 checksum:
   name_template: checksums.txt
+
+changelog:
+  sort: asc
+  format: "{{ .Message }}"
+  filters:
+    exclude:
+      - "^Merge "
+      - "^style"
+      - "^test"
+      - "^chore"
+      - "^ci"
+      - "^build"
+  groups:
+    - title: Yang baru
+      regexp: "^feat"
+      order: 0
+    - title: Perbaikan
+      regexp: "^fix"
+      order: 1
+    - title: Dokumentasi
+      regexp: "^docs"
+      order: 2
+
+release:
+  footer: |
+    ## Instalasi & update
+
+    ```bash
+    # Pasang (TUI + aplikasi desktop)
+    curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | MARTIS_DESKTOP=1 bash
+
+    # Sudah terpasang? Cukup:
+    martis update
+    ```
