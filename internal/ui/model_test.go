@@ -112,3 +112,22 @@ func TestSidebarDeletesRequest(t *testing.T) {
 		t.Fatal("sidebar delete should remove selected request")
 	}
 }
+
+func TestSidebarShowsNestedFolders(t *testing.T) {
+	col := &domain.Collection{Folders: []domain.Folder{{ID: "a", Name: "API", IsExpanded: true, Folders: []domain.Folder{
+		{ID: "b", Name: "Users", IsExpanded: true, Items: []domain.CollectionItem{{ID: "i", Name: "List", Method: "GET", URL: "https://example.test/users"}}},
+	}}}}
+	m := NewModel(&testCollectionRepo{collection: col}, testHTTPClient{})
+	if len(m.sidebarRows) != 3 || m.sidebarRows[1].depth != 1 || m.sidebarRows[2].depth != 2 {
+		t.Fatalf("unexpected rows: %+v", m.sidebarRows)
+	}
+	m.toggleFolder(0)
+	if len(m.sidebarRows) != 1 {
+		t.Fatalf("collapsing the parent should hide its subtree, got %d rows", len(m.sidebarRows))
+	}
+	m.toggleFolder(0)
+	m.loadCollectionItem(m.folderAt(m.sidebarRows[2].folderIndex).Items[0])
+	if got := m.urlInput.Value(); got != "https://example.test/users" {
+		t.Fatalf("nested request not loaded, got %q", got)
+	}
+}
