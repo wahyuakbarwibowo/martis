@@ -9,7 +9,7 @@ import (
 // Diff returns a line diff of two response bodies ("- " old, "+ " new).
 // JSON bodies are indented first so single-line payloads diff per field.
 func Diff(old, new string) string {
-	a, b := strings.Split(indentJSON(old), "\n"), strings.Split(indentJSON(new), "\n")
+	a, b := strings.Split(IndentJSON(old), "\n"), strings.Split(IndentJSON(new), "\n")
 	// Trim the shared head and tail so the LCS only covers the changed middle.
 	head := 0
 	for head < len(a) && head < len(b) && a[head] == b[head] {
@@ -61,7 +61,8 @@ func Diff(old, new string) string {
 	return strings.Join(out, "\n")
 }
 
-func indentJSON(s string) string {
+// IndentJSON pretty-prints JSON with two spaces; non-JSON input is returned as is.
+func IndentJSON(s string) string {
 	var buf bytes.Buffer
 	if json.Indent(&buf, []byte(s), "", "  ") != nil {
 		return s

@@ -92,7 +92,7 @@ Build desktop butuh Xcode Command Line Tools di macOS, atau `libgtk-3-dev` + `li
 - **macOS:** tekan `⌘ Space`, ketik **Martis**, Enter. Atau buka dari Launchpad/Applications, atau jalankan `martis-desktop` di terminal.
 - **Linux:** cari **Martis** di menu aplikasi, atau jalankan `martis-desktop`.
 
-Shortcut: `⌘↵` kirim, `⌘S` simpan, `⌘D` diff dengan response sebelumnya, `⌘F` filter (`json.path` atau teks), `⌘N` request baru. Di Linux gunakan `Ctrl` sebagai pengganti `⌘`.
+Shortcut: `⌘↵` kirim, `⌘S` simpan, `⌘D` diff dengan response sebelumnya, `⌘F` filter (`json.path` atau teks), `⇧⌘F` rapikan body JSON, `⌘N` request baru. Di Linux gunakan `Ctrl` sebagai pengganti `⌘`.
 
 ### TUI dan CLI
 
@@ -127,6 +127,7 @@ Keluar dengan `q` atau `Ctrl+C`. Semua shortcut TUI ada di bagian Keyboard Short
 | `Ctrl+D` | Bandingkan (diff) response saat ini dengan response sebelumnya |
 | `Ctrl+Y` / `Ctrl+O` | Salin response / simpan ke file |
 | `Ctrl+B` | Jalankan benchmark request |
+| `F4` | Rapikan (format) body JSON request |
 | `Ctrl+S` | Kirim HTTP Request |
 | `Enter` | Kirim request (saat di URL bar / Send button) atau Konfirmasi modal |
 | `d` / `Backspace` | Hapus request terpilih di sidebar atau modal Collection |

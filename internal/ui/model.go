@@ -1487,6 +1487,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f2":
 			m.openModal(modalTheme, "")
 			return m, nil
+		case "f4":
+			if m.tab == TabBodyRaw {
+				formatted := requestutil.IndentJSON(m.jsonBody.Value())
+				if formatted == m.jsonBody.Value() && !json.Valid([]byte(formatted)) {
+					m.status = "Body bukan JSON valid"
+				} else {
+					m.jsonBody.SetValue(formatted)
+					m.status = "Body dirapikan"
+				}
+			}
+			return m, nil
 		case "f3":
 			m.openModal(modalAuth, "")
 			return m, nil
@@ -1800,7 +1811,7 @@ func (m Model) View() string {
 	right := styles.Muted.Render("env ") + styles.Pill.Foreground(styles.TextColor).Render(env) + " "
 	header := left + strings.Repeat(" ", max(1, lipgloss.Width(mainBody)-lipgloss.Width(left)-lipgloss.Width(right))) + right
 
-	hints := []string{"^S send", "^E save", "^H history", "^G env", "^I import", "^X curl", "^B bench", "^O save body", "^D diff", "F2 theme"}
+	hints := []string{"^S send", "^E save", "^H history", "^G env", "^I import", "^X curl", "^B bench", "^O save body", "^D diff", "F4 format", "F2 theme"}
 	footer := styles.Help.Render(" " + strings.Join(hints, "  "))
 	if m.status != "" {
 		footer += styles.Faint.Render("   ·   ") + styles.Muted.Render(m.status)
@@ -2007,6 +2018,9 @@ func (m *Model) refreshResponse() {
 		return
 	}
 	content := m.responseBody
+	if len(content) <= largeResponseBytes || m.showLargeBody {
+		content = requestutil.IndentJSON(content)
+	}
 	if m.responseTab == 0 && m.responseDiff {
 		content = requestutil.Diff(m.prevResponseBody, m.responseBody)
 	} else if m.responseTab == 0 && m.responseSearch == "" && len(content) > largeResponseBytes && !m.showLargeBody {

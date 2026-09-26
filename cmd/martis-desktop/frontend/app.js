@@ -110,6 +110,16 @@ async function save() {
   renderTree();
 }
 
+function formatBody() {
+  const body = $("body");
+  if (!body.value.trim()) return;
+  try {
+    body.value = JSON.stringify(JSON.parse(body.value), null, 2);
+  } catch {
+    flash("Body is not valid JSON", true);
+  }
+}
+
 // ---------- request / response ----------
 
 async function send() {
@@ -257,6 +267,7 @@ bindTabs("req", (name) => document.querySelectorAll(".request .pane").forEach((p
 bindTabs("res", (name) => { state.resTab = name; renderOutput(); });
 $("send").onclick = send;
 $("save").onclick = save;
+$("format").onclick = formatBody;
 $("new-request").onclick = newRequest;
 $("tree-filter").oninput = renderTree;
 $("show-large").onclick = () => { state.showLarge = true; renderOutput(); };
@@ -277,6 +288,7 @@ document.addEventListener("keydown", (e) => {
   if (key === "enter") { e.preventDefault(); send(); }
   else if (key === "s") { e.preventDefault(); save(); }
   else if (key === "d") { e.preventDefault(); $("diff").click(); }
+  else if (key === "f" && e.shiftKey) { e.preventDefault(); formatBody(); }
   else if (key === "f") { e.preventDefault(); $("filter").focus(); }
   else if (key === "n") { e.preventDefault(); newRequest(); }
 });
