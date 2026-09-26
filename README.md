@@ -87,7 +87,7 @@ Skrip menambahkan Martis ke menu aplikasi. Aplikasi desktop butuh WebKitGTK 4.1:
 curl -fsSL https://raw.githubusercontent.com/wahyuakbarwibowo/martis/main/install.sh | bash
 ```
 
-Tersedia untuk macOS, Linux, dan (via [Releases](https://github.com/wahyuakbarwibowo/martis/releases/latest)) Windows. Skrip memverifikasi checksum dan memasang ke `/usr/local/bin` (atau `~/.local/bin`). Atur `VERSION=v0.6.0` untuk versi tertentu atau `INSTALL_DIR=...` untuk lokasi lain. Alternatif: `go install github.com/wahyuakbarwibowo/martis@latest`.
+Tersedia untuk macOS, Linux, dan (via [Releases](https://github.com/wahyuakbarwibowo/martis/releases/latest)) Windows. Skrip memverifikasi checksum dan memasang ke `/usr/local/bin` (atau `~/.local/bin`). Saat memasang atau `martis update`, skrip juga membersihkan cache lama milik Martis (data di `~/martis` tidak disentuh). Atur `VERSION=v0.6.0` untuk versi tertentu atau `INSTALL_DIR=...` untuk lokasi lain. Alternatif: `go install github.com/wahyuakbarwibowo/martis@latest`.
 
 ### Dari Source
 
