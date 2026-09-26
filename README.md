@@ -1,11 +1,13 @@
 <div align="center">
 
-<img src="cmd/martis-desktop/icon.png" alt="Martis" width="112" />
+<img src="assets/martis.png" alt="Martis" width="130" style="border-radius: 50%;" />
 
 # Martis
 
 **Lightweight REST client for macOS and Linux.**
 A native desktop app and a terminal UI that share the same collections, built with Go. No Electron.
+
+*"3,000 worlds, and not a single worthy API client... until now."*
 
 [![Release](https://img.shields.io/github/v/release/wahyuakbarwibowo/martis?color=4ade80)](https://github.com/wahyuakbarwibowo/martis/releases/latest)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/wahyuakbarwibowo/martis?color=00ADD8)](https://go.dev)
