@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"fmt"
 	"runtime"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -110,5 +112,45 @@ func TestSidebarDeletesRequest(t *testing.T) {
 	m = updated.(Model)
 	if len(m.collection.Folders[0].Items) != 0 {
 		t.Fatal("sidebar delete should remove selected request")
+	}
+}
+
+func TestSidebarShowsNestedFolders(t *testing.T) {
+	col := &domain.Collection{Folders: []domain.Folder{{ID: "a", Name: "API", IsExpanded: true, Folders: []domain.Folder{
+		{ID: "b", Name: "Users", IsExpanded: true, Items: []domain.CollectionItem{{ID: "i", Name: "List", Method: "GET", URL: "https://example.test/users"}}},
+	}}}}
+	m := NewModel(&testCollectionRepo{collection: col}, testHTTPClient{})
+	if len(m.sidebarRows) != 3 || m.sidebarRows[1].depth != 1 || m.sidebarRows[2].depth != 2 {
+		t.Fatalf("unexpected rows: %+v", m.sidebarRows)
+	}
+	m.toggleFolder(0)
+	if len(m.sidebarRows) != 1 {
+		t.Fatalf("collapsing the parent should hide its subtree, got %d rows", len(m.sidebarRows))
+	}
+	m.toggleFolder(0)
+	m.loadCollectionItem(m.folderAt(m.sidebarRows[2].folderIndex).Items[0])
+	if got := m.urlInput.Value(); got != "https://example.test/users" {
+		t.Fatalf("nested request not loaded, got %q", got)
+	}
+}
+
+func TestSidebarScrollsToSelection(t *testing.T) {
+	var items []domain.CollectionItem
+	for i := 0; i < 60; i++ {
+		items = append(items, domain.CollectionItem{ID: fmt.Sprint(i), Name: fmt.Sprintf("req-%02d", i), Method: "GET", URL: fmt.Sprintf("https://example.test/%d", i)})
+	}
+	col := &domain.Collection{Folders: []domain.Folder{{ID: "f", Name: "Requests", IsExpanded: true, Items: items}}}
+	m := NewModel(&testCollectionRepo{collection: col}, testHTTPClient{})
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m = updated.(Model)
+	m.selectedTreeIndex = 50
+	view := m.renderSidebar(28)
+	if !strings.Contains(view, "req-49") || strings.Contains(view, "req-00") {
+		t.Fatal("sidebar should page to the selected row")
+	}
+	updated, _ = m.Update(tea.MouseMsg{X: 4, Y: 4, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	m = updated.(Model)
+	if m.selectedTreeIndex != m.sidebarOffset() || m.selectedTreeIndex == 0 {
+		t.Fatalf("click on first visible row selected %d", m.selectedTreeIndex)
 	}
 }

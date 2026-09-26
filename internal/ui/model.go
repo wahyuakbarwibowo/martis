@@ -103,9 +103,9 @@ func (m Model) collectionItems() []treeRow {
 	if m.collection == nil {
 		return rows
 	}
-	for folderIndex, folder := range m.collection.Folders {
+	for folderIndex, folder := range m.collection.FlatFolders() {
 		for itemIndex, item := range folder.Items {
-			rows = append(rows, treeRow{rowType: rowItem, folderIndex: folderIndex, itemIndex: itemIndex, name: folder.Name + " / " + item.Name, method: item.Method})
+			rows = append(rows, treeRow{rowType: rowItem, folderIndex: folderIndex, itemIndex: itemIndex, name: folder.Path + " / " + item.Name, method: item.Method})
 		}
 	}
 	return rows
@@ -139,7 +139,8 @@ const (
 
 type treeRow struct {
 	rowType     treeRowType
-	folderIndex int
+	folderIndex int // index into Collection.FlatFolders()
+	depth       int
 	itemIndex   int
 	name        string
 	method      string
@@ -364,24 +365,32 @@ func (m *Model) rebuildSidebarRows() {
 	if m.collection == nil {
 		return
 	}
-	for fIdx, f := range m.collection.Folders {
+	hideBelow := -1 // depth of the collapsed folder whose subtree is hidden
+	for fIdx, f := range m.collection.FlatFolders() {
+		if hideBelow >= 0 && f.Depth > hideBelow {
+			continue
+		}
+		hideBelow = -1
 		rows = append(rows, treeRow{
 			rowType:     rowFolder,
 			folderIndex: fIdx,
+			depth:       f.Depth,
 			name:        f.Name,
 			isExpanded:  f.IsExpanded,
 		})
-
-		if f.IsExpanded {
-			for iIdx, it := range f.Items {
-				rows = append(rows, treeRow{
-					rowType:     rowItem,
-					folderIndex: fIdx,
-					itemIndex:   iIdx,
-					name:        it.Name,
-					method:      it.Method,
-				})
-			}
+		if !f.IsExpanded {
+			hideBelow = f.Depth
+			continue
+		}
+		for iIdx, it := range f.Items {
+			rows = append(rows, treeRow{
+				rowType:     rowItem,
+				folderIndex: fIdx,
+				depth:       f.Depth + 1,
+				itemIndex:   iIdx,
+				name:        it.Name,
+				method:      it.Method,
+			})
 		}
 	}
 	m.sidebarRows = rows
@@ -598,9 +607,21 @@ func (m *Model) syncTabFromEditor() error {
 	return nil
 }
 
+// folderAt returns the folder at a FlatFolders index, or nil.
+func (m *Model) folderAt(fIdx int) *domain.FolderRef {
+	if m.collection == nil {
+		return nil
+	}
+	flat := m.collection.FlatFolders()
+	if fIdx < 0 || fIdx >= len(flat) {
+		return nil
+	}
+	return &flat[fIdx]
+}
+
 func (m *Model) toggleFolder(fIdx int) {
-	if m.collection != nil && fIdx >= 0 && fIdx < len(m.collection.Folders) {
-		m.collection.Folders[fIdx].IsExpanded = !m.collection.Folders[fIdx].IsExpanded
+	if f := m.folderAt(fIdx); f != nil {
+		f.IsExpanded = !f.IsExpanded
 		if err := m.repo.Save(m.collection); err != nil {
 			m.status = "save collection failed: " + err.Error()
 		}
@@ -665,8 +686,12 @@ func (m *Model) saveCurrentToCollection(name string) {
 	if m.selectedTreeIndex < len(m.sidebarRows) {
 		targetFolder = m.sidebarRows[m.selectedTreeIndex].folderIndex
 	}
-	m.collection.Folders[targetFolder].Items = append(m.collection.Folders[targetFolder].Items, newItem)
-	m.collection.Folders[targetFolder].IsExpanded = true
+	target := m.folderAt(targetFolder)
+	if target == nil {
+		target = m.folderAt(0)
+	}
+	target.Items = append(target.Items, newItem)
+	target.IsExpanded = true
 	if err := m.repo.Save(m.collection); err != nil {
 		m.status = "save collection failed: " + err.Error()
 	}
@@ -839,7 +864,7 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 		}
 		if (msg.String() == "d" || msg.String() == "backspace") && len(items) > 0 {
 			row := items[m.modalIndex]
-			folder := &m.collection.Folders[row.folderIndex]
+			folder := m.folderAt(row.folderIndex)
 			folder.Items = append(folder.Items[:row.itemIndex], folder.Items[row.itemIndex+1:]...)
 			if err := m.repo.Save(m.collection); err != nil {
 				m.modalError = err.Error()
@@ -856,7 +881,7 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 		}
 		if msg.String() == "y" && len(items) > 0 {
 			row := items[m.modalIndex]
-			folder := &m.collection.Folders[row.folderIndex]
+			folder := m.folderAt(row.folderIndex)
 			copyItem := folder.Items[row.itemIndex]
 			copyItem.ID = fmt.Sprintf("item-%d", time.Now().UnixNano())
 			copyItem.Name += " (copy)"
@@ -880,7 +905,7 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 		}
 		if msg.String() == "enter" && len(items) > 0 {
 			row := items[m.modalIndex]
-			m.loadCollectionItem(m.collection.Folders[row.folderIndex].Items[row.itemIndex])
+			m.loadCollectionItem(m.folderAt(row.folderIndex).Items[row.itemIndex])
 			m.focus = FocusURL
 			m.modal = modalNone
 			m.updateFocusStates()
@@ -992,7 +1017,8 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	if m.modal == modalMove {
-		count := len(m.collection.Folders)
+		folders := m.collection.FlatFolders()
+		count := len(folders)
 		switch msg.String() {
 		case "up":
 			if count > 0 {
@@ -1012,22 +1038,22 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 				m.modalError = "Choose a different folder"
 				return nil
 			}
-			from := &m.collection.Folders[m.moveItemFolder]
+			from, to := folders[m.moveItemFolder], folders[m.modalIndex]
 			if m.moveItemIndex < 0 || m.moveItemIndex >= len(from.Items) {
 				m.modalError = "Invalid request target"
 				return nil
 			}
 			item := from.Items[m.moveItemIndex]
 			from.Items = append(from.Items[:m.moveItemIndex], from.Items[m.moveItemIndex+1:]...)
-			m.collection.Folders[m.modalIndex].Items = append(m.collection.Folders[m.modalIndex].Items, item)
-			m.collection.Folders[m.modalIndex].IsExpanded = true
+			to.Items = append(to.Items, item)
+			to.IsExpanded = true
 			if err := m.repo.Save(m.collection); err != nil {
 				m.modalError = err.Error()
 				return nil
 			}
 			m.rebuildSidebarRows()
 			m.modal = modalNone
-			m.status = "Moved request to " + m.collection.Folders[m.modalIndex].Name
+			m.status = "Moved request to " + to.Path
 			m.updateFocusStates()
 			return nil
 		}
@@ -1062,14 +1088,15 @@ func (m *Model) handleModalKey(msg tea.KeyMsg) tea.Cmd {
 				m.modalError = "Name is required"
 				return nil
 			}
-			if m.collection == nil || m.renameFolderIndex < 0 || m.renameFolderIndex >= len(m.collection.Folders) {
+			folder := m.folderAt(m.renameFolderIndex)
+			if folder == nil {
 				m.modalError = "Invalid collection target"
 				return nil
 			}
 			if m.renameIsFolder {
-				m.collection.Folders[m.renameFolderIndex].Name = name
-			} else if m.renameItemIndex >= 0 && m.renameItemIndex < len(m.collection.Folders[m.renameFolderIndex].Items) {
-				m.collection.Folders[m.renameFolderIndex].Items[m.renameItemIndex].Name = name
+				folder.Name = name
+			} else if m.renameItemIndex >= 0 && m.renameItemIndex < len(folder.Items) {
+				folder.Items[m.renameItemIndex].Name = name
 			} else {
 				m.modalError = "Invalid request target"
 				return nil
@@ -1308,6 +1335,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// View has a title, panel border, tree heading and help line above
 				// the first row. Keep this aligned with renderSidebar's layout.
 				clickedRow := msg.Y - 4
+				if clickedRow < m.sidebarVisibleRows() {
+					clickedRow += m.sidebarOffset()
+				} else {
+					clickedRow = -1
+				}
 				if clickedRow >= 0 && clickedRow < len(m.sidebarRows) {
 					m.selectedTreeIndex = clickedRow
 					m.focus = FocusSidebar
@@ -1316,8 +1348,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if row.rowType == rowFolder {
 						m.toggleFolder(row.folderIndex)
 					} else {
-						f := m.collection.Folders[row.folderIndex]
-						if row.itemIndex < len(f.Items) {
+						f := m.folderAt(row.folderIndex)
+						if f != nil && row.itemIndex < len(f.Items) {
 							m.loadCollectionItem(f.Items[row.itemIndex])
 						}
 					}
@@ -1659,7 +1691,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "m":
 				if m.selectedTreeIndex < len(m.sidebarRows) {
 					row := m.sidebarRows[m.selectedTreeIndex]
-					if row.rowType == rowItem && len(m.collection.Folders) > 1 {
+					if row.rowType == rowItem && len(m.collection.FlatFolders()) > 1 {
 						m.moveItemFolder, m.moveItemIndex = row.folderIndex, row.itemIndex
 						m.moveFolderIndex = row.folderIndex
 						m.openModal(modalMove, "")
@@ -1669,9 +1701,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "d", "backspace":
 				if m.selectedTreeIndex < len(m.sidebarRows) && m.collection != nil {
 					row := m.sidebarRows[m.selectedTreeIndex]
-					folder := &m.collection.Folders[row.folderIndex]
+					folder := m.folderAt(row.folderIndex)
+					if folder == nil {
+						break
+					}
 					if row.rowType == rowFolder {
-						m.collection.Folders = append(m.collection.Folders[:row.folderIndex], m.collection.Folders[row.folderIndex+1:]...)
+						folder.Remove()
 						m.status = "Deleted folder"
 					} else if row.itemIndex < len(folder.Items) {
 						folder.Items = append(folder.Items[:row.itemIndex], folder.Items[row.itemIndex+1:]...)
@@ -1685,11 +1720,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "y":
 				if m.selectedTreeIndex < len(m.sidebarRows) && m.collection != nil {
 					row := m.sidebarRows[m.selectedTreeIndex]
-					if row.rowType == rowItem && row.itemIndex < len(m.collection.Folders[row.folderIndex].Items) {
-						item := m.collection.Folders[row.folderIndex].Items[row.itemIndex]
+					folder := m.folderAt(row.folderIndex)
+					if row.rowType == rowItem && folder != nil && row.itemIndex < len(folder.Items) {
+						item := folder.Items[row.itemIndex]
 						item.ID = fmt.Sprintf("item-%d", time.Now().UnixNano())
 						item.Name += " (copy)"
-						m.collection.Folders[row.folderIndex].Items = append(m.collection.Folders[row.folderIndex].Items, item)
+						folder.Items = append(folder.Items, item)
 						if err := m.repo.Save(m.collection); err != nil {
 							m.status = "save collection failed: " + err.Error()
 						} else {
@@ -1712,8 +1748,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if row.rowType == rowFolder {
 						m.toggleFolder(row.folderIndex)
 					} else {
-						f := m.collection.Folders[row.folderIndex]
-						if row.itemIndex < len(f.Items) {
+						f := m.folderAt(row.folderIndex)
+						if f != nil && row.itemIndex < len(f.Items) {
 							m.loadCollectionItem(f.Items[row.itemIndex])
 							m.focus = FocusURL
 							m.updateFocusStates()
@@ -1938,22 +1974,37 @@ func listRow(text string, selected bool) string {
 	return " " + text
 }
 
+// sidebarVisibleRows is how many tree rows fit under the sidebar heading.
+func (m Model) sidebarVisibleRows() int {
+	return max(10, m.height-6) - 2
+}
+
+// sidebarOffset pages the tree so the selected row is always on screen.
+// ponytail: page jumps instead of smooth scrolling; add a stored offset if it feels jumpy.
+func (m Model) sidebarOffset() int {
+	visible := m.sidebarVisibleRows()
+	return m.selectedTreeIndex / visible * visible
+}
+
 func (m Model) renderSidebar(width int) string {
 	lines := []string{
 		styles.Muted.Bold(true).Render(" COLLECTIONS"),
 		styles.Faint.Render(" click or ↑/↓ enter"),
 	}
-	for i, row := range m.sidebarRows {
+	offset := m.sidebarOffset()
+	end := min(len(m.sidebarRows), offset+m.sidebarVisibleRows())
+	for i := offset; i < end; i++ {
+		row := m.sidebarRows[i]
 		selected := i == m.selectedTreeIndex && m.focus == FocusSidebar
-		var text string
+		text := strings.Repeat("  ", row.depth)
 		if row.rowType == rowFolder {
 			chevron := "▸"
 			if row.isExpanded {
 				chevron = "▾"
 			}
-			text = styles.Faint.Render(chevron) + " " + styles.Folder.Render(row.name)
+			text += styles.Faint.Render(chevron) + " " + styles.Folder.Render(row.name)
 		} else {
-			text = "  " + styles.MethodStyle(row.method).Width(7).Render(row.method) + styles.Row.Render(row.name)
+			text += styles.MethodStyle(row.method).Width(7).Render(row.method) + styles.Row.Render(row.name)
 		}
 		lines = append(lines, listRow(ansi.Truncate(text, width-3, "…"), selected))
 	}
@@ -2240,8 +2291,8 @@ func (m Model) renderModal(background string) string {
 		body = m.modalInput.View() + "\nEnter to rename"
 	case modalMove:
 		title = "Move request to folder"
-		for i, folder := range m.collection.Folders {
-			name := folder.Name
+		for i, folder := range m.collection.FlatFolders() {
+			name := folder.Path
 			body += listRow(name, i == m.modalIndex) + "\n"
 		}
 		body += "↑/↓ select • Enter move"

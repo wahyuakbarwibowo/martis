@@ -24,25 +24,43 @@ const state = {
 async function loadCollections() {
   state.col = (await api.Collections()) || { name: "Collections", folders: [] };
   state.col.folders ||= [];
-  state.col.folders.forEach((f) => f.is_expanded && state.open.add(f.id));
+  flatFolders().forEach(({ folder }) => folder.is_expanded && state.open.add(folder.id));
   renderTree();
+}
+
+// Depth-first list of every folder; state.sel.f indexes into it.
+function flatFolders() {
+  const out = [];
+  const walk = (list, depth, prefix) => (list || []).forEach((folder) => {
+    const path = prefix + folder.name;
+    out.push({ folder, depth, path });
+    walk(folder.folders, depth + 1, path + " / ");
+  });
+  walk(state.col.folders, 0, "");
+  return out;
 }
 
 function renderTree() {
   const q = $("tree-filter").value.trim().toLowerCase();
   const tree = $("tree");
   tree.textContent = "";
-  state.col.folders.forEach((folder, f) => {
+  let hideBelow = -1; // depth of a collapsed folder whose subtree is hidden
+  flatFolders().forEach(({ folder, depth, path }, f) => {
+    if (!q && hideBelow >= 0 && depth > hideBelow) return;
+    hideBelow = -1;
     const items = (folder.items || []).map((it, i) => ({ it, i }))
       .filter(({ it }) => !q || `${it.name} ${it.url}`.toLowerCase().includes(q));
     if (q && !items.length) return;
     const open = q || state.open.has(folder.id);
-    const row = el("div", "folder", [el("span", "chev", [open ? "▾" : "▸"]), el("span", "name", [folder.name])]);
+    if (!open) hideBelow = depth;
+    const row = el("div", "folder", [el("span", "chev", [open ? "▾" : "▸"]), el("span", "name", [q ? path : folder.name])]);
+    if (!q) row.style.paddingLeft = `${depth * 14 + 8}px`;
     row.onclick = () => { state.open.has(folder.id) ? state.open.delete(folder.id) : state.open.add(folder.id); renderTree(); };
     tree.append(row);
     if (!open) return;
     for (const { it, i } of items) {
       const item = el("div", "item", [el("span", `verb ${it.method}`, [it.method]), el("span", "name", [it.name])]);
+      if (!q) item.style.paddingLeft = `${depth * 14 + 26}px`;
       if (state.sel && state.sel.f === f && state.sel.i === i) item.classList.add("selected");
       item.onclick = () => loadItem(f, i);
       tree.append(item);
@@ -51,7 +69,7 @@ function renderTree() {
 }
 
 function loadItem(f, i) {
-  const it = state.col.folders[f].items[i];
+  const it = flatFolders()[f].folder.items[i];
   state.sel = { f, i };
   $("method").value = it.method || "GET";
   $("url").value = it.url || "";
@@ -68,7 +86,7 @@ function loadItem(f, i) {
   if (it.header_auth) lines.push(`Authorization: ${it.header_auth}`);
   for (const h of it.headers || []) lines.push(`${h.key}: ${h.value}`);
   $("headers").value = lines.join("\n");
-  $("crumb").textContent = `${state.col.folders[f].name} / ${it.name}`;
+  $("crumb").textContent = `${flatFolders()[f].path} / ${it.name}`;
   renderTree();
 }
 
@@ -97,7 +115,7 @@ async function save() {
   };
   edited.name = $("name").value.trim() || `${edited.method} ${edited.url.split("?")[0].split("/").pop() || "request"}`;
   if (state.sel) {
-    const items = state.col.folders[state.sel.f].items;
+    const items = flatFolders()[state.sel.f].folder.items;
     items[state.sel.i] = { ...items[state.sel.i], ...edited }; // keep fields the desktop does not edit
   } else {
     if (!state.col.folders.length) state.col.folders.push({ id: `f${Date.now()}`, name: "Requests", is_expanded: true, items: [] });
@@ -110,7 +128,7 @@ async function save() {
   try {
     await api.SaveCollections(state.col);
     $("name").value = edited.name;
-    $("crumb").textContent = `${state.col.folders[state.sel.f].name} / ${edited.name}`;
+    $("crumb").textContent = `${flatFolders()[state.sel.f].path} / ${edited.name}`;
     flash("Saved");
   } catch (e) {
     flash(`Save failed: ${e}`, true);

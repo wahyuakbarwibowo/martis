@@ -16,8 +16,8 @@ import (
 func RunFolder(col *domain.Collection, folder string, vars map[string]string, do func(domain.RequestPayload) domain.ResponseResult, out io.Writer) (int, error) {
 	var items []domain.CollectionItem
 	found := false
-	for _, f := range col.Folders {
-		if strings.EqualFold(f.Name, folder) {
+	for _, f := range col.FlatFolders() {
+		if strings.EqualFold(f.Path, folder) || strings.EqualFold(f.Name, folder) {
 			items, found = f.Items, true
 			break
 		}

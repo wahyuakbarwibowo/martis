@@ -110,9 +110,10 @@ func HandleCLIArgs(version string) bool {
 			fmt.Printf("Gagal memuat collections: %v\n", err)
 			return true
 		}
-		fmt.Printf("📁 Collections: %s (%d folders)\n\n", col.Name, len(col.Folders))
-		for _, f := range col.Folders {
-			fmt.Printf("📂 %s (%d requests)\n", f.Name, len(f.Items))
+		folders := col.FlatFolders()
+		fmt.Printf("📁 Collections: %s (%d folders)\n\n", col.Name, len(folders))
+		for _, f := range folders {
+			fmt.Printf("📂 %s (%d requests)\n", f.Path, len(f.Items))
 			for i, it := range f.Items {
 				fmt.Printf("   %d. [%-6s] %-25s -> %s\n", i+1, it.Method, it.Name, it.URL)
 			}

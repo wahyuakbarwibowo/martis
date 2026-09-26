@@ -47,19 +47,18 @@ func postman(raw map[string]any, name string) (*domain.Collection, error) {
 		col.Folders = append(col.Folders, domain.Folder{ID: id(), Name: name, IsExpanded: true})
 		return &col.Folders[len(col.Folders)-1]
 	}
-	var walk func([]any, string)
-	walk = func(items []any, folderName string) {
+	// cur is nil for requests at the top level; they go to "Imported".
+	var walk func([]any, *[]domain.Folder, *domain.Folder)
+	walk = func(items []any, list *[]domain.Folder, cur *domain.Folder) {
 		for _, value := range items {
 			item, ok := value.(map[string]any)
 			if !ok {
 				continue
 			}
 			if children, ok := item["item"].([]any); ok {
-				n, _ := item["name"].(string)
-				if n == "" {
-					n = folderName
-				}
-				walk(children, n)
+				*list = append(*list, domain.Folder{ID: id(), Name: stringValue(item["name"], "Folder"), IsExpanded: true})
+				child := &(*list)[len(*list)-1]
+				walk(children, &child.Folders, child)
 				continue
 			}
 			request, ok := item["request"].(map[string]any)
@@ -97,11 +96,14 @@ func postman(raw map[string]any, name string) (*domain.Collection, error) {
 					}
 				}
 			}
-			f := folder(folderName)
+			f := cur
+			if f == nil {
+				f = folder("Imported")
+			}
 			f.Items = append(f.Items, ci)
 		}
 	}
-	walk(anySlice(raw["item"]), "Imported")
+	walk(anySlice(raw["item"]), &col.Folders, nil)
 	return col, nil
 }
 
