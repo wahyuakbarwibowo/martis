@@ -112,6 +112,39 @@ if [ "${MARTIS_DESKTOP:-0}" = "1" ]; then
     fi
 fi
 
+# Bersihkan sisa versi lama: hanya cache dan salinan milik Martis yang aman
+# dibuat ulang. Data pengguna (~/martis, ~/.config/martis) tidak disentuh.
+cleanup_old() {
+    local freed=0 kb p
+    local paths=(
+        "${HOME}/Library/Caches/martis-desktop"
+        "${HOME}/Library/WebKit/martis-desktop"
+        "${HOME}/Library/Caches/com.github.wahyuakbarwibowo.martis"
+        "${HOME}/Library/WebKit/com.github.wahyuakbarwibowo.martis"
+        "${XDG_CACHE_HOME:-${HOME}/.cache}/martis"
+        "${XDG_CACHE_HOME:-${HOME}/.cache}/martis-desktop"
+    )
+    # Salinan Martis.app lama di ~/Applications bila versi baru ada di /Applications.
+    if [ -d "/Applications/Martis.app" ] && [ -d "${HOME}/Applications/Martis.app" ]; then
+        paths+=("${HOME}/Applications/Martis.app")
+    fi
+    for p in "${paths[@]}"; do
+        [ -e "${p}" ] || continue
+        kb="$(du -sk "${p}" 2>/dev/null | cut -f1)"
+        rm -rf "${p}" && freed=$((freed + ${kb:-0}))
+    done
+    # Symlink martis-desktop yang sudah tidak menunjuk ke mana pun.
+    for p in "${INSTALL_DIR}/martis-desktop" "${HOME}/.local/bin/martis-desktop" /usr/local/bin/martis-desktop; do
+        if [ -L "${p}" ] && [ ! -e "${p}" ]; then
+            if [ -w "$(dirname "${p}")" ]; then rm -f "${p}"; else sudo rm -f "${p}" || true; fi
+        fi
+    done
+    if [ "${freed}" -gt 0 ]; then
+        echo "🧹 Membersihkan sisa versi lama (${freed} KB dibebaskan)"
+    fi
+}
+cleanup_old
+
 echo ""
 echo "✅ Martis ${VERSION} berhasil dipasang!"
 echo "🚀 Jalankan di terminal:"
