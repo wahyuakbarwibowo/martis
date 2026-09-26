@@ -187,5 +187,13 @@ Kontribusi dan pull request selalu disambut dengan baik!
 
 ---
 
+## Catatan
+
+Martis adalah proyek iseng (*fun project*) untuk belajar dan dipakai sendiri, **bukan produk komersial dan tidak akan dikomersialkan**. Gratis dan open source apa adanya.
+
+Nama dan gambar hero terinspirasi dari karakter Martis di *Mobile Legends: Bang Bang*. Karakter dan artwork tersebut milik Moonton; proyek ini tidak berafiliasi dengan maupun didukung oleh Moonton.
+
+---
+
 ## Lisensi
 Didistribusikan di bawah lisensi [MIT](LICENSE).
