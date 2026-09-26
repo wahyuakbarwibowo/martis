@@ -99,15 +99,8 @@ func HandleCLIArgs(version string) bool {
 		fmt.Printf("martis %s\n", version)
 		return true
 
-	case "update", "--update":
-		fmt.Println("⚡ Memeriksa dan memperbarui Martis dari upstream...")
-		if _, err := os.Stat(".git"); err == nil {
-			fmt.Println("Repo git terdeteksi. Menjalankan make update-upstream...")
-			fmt.Println("Menjalankan: make update-upstream")
-		} else {
-			fmt.Println("Untuk update langsung tanpa repositori lokal, gunakan:")
-			fmt.Println("  go install github.com/wahyuakbarwibowo/martis@latest")
-		}
+	case "update", "upgrade", "--update":
+		selfUpdate(version)
 		return true
 
 	case "collections", "col":
@@ -139,7 +132,7 @@ func HandleCLIArgs(version string) bool {
 		fmt.Println("  martis version     Tampilkan versi aplikasi")
 		fmt.Println("")
 		fmt.Println("Aplikasi desktop: jalankan 'martis-desktop' (pasang dengan MARTIS_DESKTOP=1 pada install.sh)")
-		fmt.Println("  martis update      Perbarui aplikasi dari upstream")
+		fmt.Println("  martis update      Perbarui martis (dan aplikasi desktop) ke rilis terbaru (alias: upgrade)")
 		fmt.Println("  martis help        Tampilkan bantuan ini")
 		return true
 	}

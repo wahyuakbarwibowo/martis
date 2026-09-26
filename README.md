@@ -149,7 +149,7 @@ martis run --env prod Auth   # Jalankan semua request di folder "Auth" (exit 1 j
 martis https://api.test/users  # Buka TUI dengan URL tersebut
 martis curl -H 'X-A: b' https://api.test  # Buka TUI dengan request dari perintah cURL
 martis version     # Tampilkan versi terpasang
-martis update      # Cek & perbarui aplikasi dari upstream
+martis update      # Perbarui ke rilis terbaru (termasuk aplikasi desktop bila terpasang)
 martis help        # Tampilkan ringkasan bantuan
 ```
 
