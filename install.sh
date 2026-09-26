@@ -13,7 +13,7 @@ if [ ! -w "${INSTALL_DIR}" ] && ! command -v sudo &> /dev/null; then
     mkdir -p "${INSTALL_DIR}"
 fi
 
-echo "⚡ Menyiapkan Martis TUI..."
+echo "⚡ Menyiapkan Martis..."
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 case "${OS}" in
