@@ -1,0 +1,51 @@
+name: Bug report
+description: Laporkan sesuatu yang tidak berjalan semestinya
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Terima kasih sudah melapor! Jangan sertakan token, password, atau URL internal.
+  - type: dropdown
+    id: app
+    attributes:
+      label: Aplikasi
+      options: [TUI (martis), Desktop (Martis.app / martis-desktop), CLI (run / import / update)]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versi
+      description: Output `martis version`
+      placeholder: martis 0.7.0
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS dan arsitektur
+      placeholder: macOS 15 (Apple Silicon) / Ubuntu 24.04 amd64
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Langkah reproduksi
+      placeholder: |
+        1. Buka ...
+        2. Kirim request ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Yang diharapkan vs yang terjadi
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log atau screenshot
+      description: Opsional. Pesan error, output terminal, atau tangkapan layar.
+      render: text

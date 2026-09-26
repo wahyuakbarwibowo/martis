@@ -170,7 +170,7 @@ martis help        # Tampilkan ringkasan bantuan
 
 ---
 
-## Roadmap & Kontribusi
+## Tips Penggunaan
 Pada tab Form-Data, isi satu baris per field (`name=value`) atau file (`@avatar=/path/to/avatar.png`). Impor cURL mendukung method, URL, headers, autentikasi dasar, body file (`--data-binary @file`), dan banyak field form-data/file (termasuk atribut MIME seperti `;type=image/png`). Pada macOS, tekan `Ctrl+F` atau klik editor file untuk membuka Finder dan memilih file lokal; platform lain memakai picker internal. File environment disimpan di `~/martis/environments/`; gunakan `{{variable}}` pada URL, header, atau body.
 
 Tab Assertions menerima satu baris per aturan:
@@ -183,7 +183,11 @@ set token = json.access_token
 
 Baris `set` menyimpan nilai dari response ke environment aktif, sehingga request berikutnya bisa memakai `{{token}}` (juga berlaku saat `martis run`). Response di atas 1 MB tidak langsung ditampilkan: tekan `Enter` di panel response untuk tetap menampilkan, `/` untuk filter, atau `Ctrl+O` untuk menyimpan ke file.
 
-Kontribusi dan pull request selalu disambut dengan baik!
+---
+
+## Kontribusi
+
+Kontribusi dan laporan bug selalu disambut. Baca [CONTRIBUTING.md](CONTRIBUTING.md) untuk alur kerja, konvensi commit, dan cara [membuka issue](https://github.com/wahyuakbarwibowo/martis/issues/new/choose). Celah keamanan dilaporkan secara privat lewat [Security advisories](https://github.com/wahyuakbarwibowo/martis/security/advisories/new).
 
 ---
 

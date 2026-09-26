@@ -1,0 +1,28 @@
+name: Feature request
+description: Usulkan ide atau peningkatan
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Masalah yang ingin diselesaikan
+      description: Ceritakan situasinya. Apa yang sekarang sulit atau tidak bisa dilakukan?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Usulan solusi
+      description: Bagaimana sebaiknya Martis membantu?
+    validations:
+      required: true
+  - type: dropdown
+    id: app
+    attributes:
+      label: Untuk aplikasi
+      multiple: true
+      options: [TUI, Desktop, CLI]
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatif yang sudah dicoba
