@@ -29,6 +29,8 @@
       <a href="#environment">Environment &amp; variabel</a>
       <a href="#tests">Tests &amp; request berantai</a>
       <a href="#response">Alat bantu response</a>
+      <a href="#graphql">GraphQL</a>
+      <a href="#sse">Server-Sent Events</a>
       <a href="#import">Import &amp; export</a>
       <a href="#ci">Menjalankan di CI</a>
       <p>Referensi</p>
@@ -120,6 +122,7 @@ martis curl -H 'Accept: application/json' https://api.example.com</code></pre>
           <li><b>Body</b>: JSON mentah. Rapikan dengan <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>F</kbd> (desktop) atau <kbd>F4</kbd> (TUI).</li>
           <li><b>Headers</b>: satu baris per header, format <code>Key: Value</code>.</li>
           <li><b>Tests</b>: assertion dan pengambilan variabel (lihat <a href="#tests">Tests</a>).</li>
+          <li><b>GraphQL</b>: query dan variables (lihat <a href="#graphql">GraphQL</a>).</li>
           <li>Khusus TUI: <b>Form</b> untuk multipart (<code>field=value</code>, <code>@file=/path</code>), <b>Query</b> yang sinkron dengan URL, dan <b>Auth</b> dengan preset Bearer, Basic, API key, dan OAuth 2.0 (<kbd>F3</kbd>).</li>
         </ul>
         <p>Simpan request ke collection dengan <kbd>⌘</kbd> <kbd>S</kbd> (desktop) atau <kbd>Ctrl</kbd> <kbd>E</kbd> (TUI).</p>
@@ -158,6 +161,28 @@ set token = json.access_token</code></pre>
         </ul>
       </section>
 
+      <section id="graphql">
+        <h2>GraphQL</h2>
+        <p><b>Desktop:</b> pilih <b>GraphQL</b> pada dropdown di bar tab Body, lalu isi query dan variables.</p>
+        <p><b>TUI:</b> buka tab <b>GQL</b>. Tulis query, lalu baris <code>### variables</code> diikuti JSON variables:</p>
+        <pre><code>query ($id: ID!) {
+  user(id: $id) { name email }
+}
+### variables
+{ "id": "{{user_id}}" }</code></pre>
+        <p>Martis mengirimnya sebagai <code>{"query": ..., "variables": ...}</code> dengan <code>Content-Type: application/json</code>. Variabel environment <code>{{...}}</code> berlaku di query maupun variables, dan request GraphQL ikut tersimpan di collection serta berjalan di <code>martis run</code>.</p>
+      </section>
+
+      <section id="sse">
+        <h2>Server-Sent Events</h2>
+        <p>Bila server menjawab dengan <code>Content-Type: text/event-stream</code>, setiap event tampil begitu datang, tidak perlu menunggu koneksi ditutup.</p>
+        <ul>
+          <li><b>Desktop:</b> tombol Send berubah menjadi <b>Stop</b> selama stream terbuka; jumlah event tampil di atas panel response.</li>
+          <li><b>TUI:</b> status bar menampilkan jumlah event; tekan <kbd>Ctrl</kbd> <kbd>S</kbd> untuk menghentikan stream.</li>
+        </ul>
+        <p>Agar tetap ringan, hanya sekitar 1 MB teks stream terakhir yang disimpan. Server yang tidak menjawab dalam 30 detik tetap dihentikan.</p>
+      </section>
+
       <section id="import">
         <h2>Import &amp; export</h2>
         <pre><code>martis import collection.json       <span class="c"># Postman v2 atau OpenAPI 3</span>
@@ -190,7 +215,7 @@ martis import staging.postman_environment.json   <span class="c"># environment P
         <table>
           <tr><th>Shortcut</th><th>Aksi</th></tr>
           <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd> <kbd>Tab</kbd></td><td>Pindah fokus</td></tr>
-          <tr><td><kbd>Ctrl</kbd> <kbd>S</kbd></td><td>Kirim request</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>S</kbd></td><td>Kirim request (saat streaming: hentikan)</td></tr>
           <tr><td><kbd>Ctrl</kbd> <kbd>E</kbd></td><td>Simpan ke collection</td></tr>
           <tr><td><kbd>Ctrl</kbd> <kbd>P</kbd></td><td>Buka daftar collection</td></tr>
           <tr><td><kbd>Ctrl</kbd> <kbd>N</kbd></td><td>Buat folder</td></tr>

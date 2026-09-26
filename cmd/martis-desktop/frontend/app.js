@@ -4,6 +4,7 @@ const api = window.go.main.App;
 const $ = (id) => document.getElementById(id);
 const LARGE = 1 << 20;     // ask before rendering bodies over 1 MB
 const HIGHLIGHT = 200_000; // skip syntax colouring above this size
+const MAX_EVENTS = 500;    // SSE events kept on screen
 
 const state = {
   col: { name: "Collections", folders: [] },
@@ -14,6 +15,8 @@ const state = {
   diff: false,
   showLarge: false,
   resTab: "rbody",
+  sending: false,
+  events: 0,       // SSE events received for the request in flight
 };
 
 // ---------- collections ----------
@@ -53,7 +56,11 @@ function loadItem(f, i) {
   $("method").value = it.method || "GET";
   $("url").value = it.url || "";
   $("name").value = it.name || "";
-  $("body").value = it.body_raw || "";
+  const gql = it.body_type === "graphql";
+  setBodyType(gql ? "graphql" : "raw");
+  $("body").value = gql ? "" : it.body_raw || "";
+  $("gql").value = gql ? it.body_raw || "" : "";
+  $("gqlvars").value = it.variables || "";
   $("tests").value = it.assertions || "";
   // Fold the legacy single-header fields into the header list.
   const lines = [];
@@ -67,7 +74,8 @@ function loadItem(f, i) {
 
 function newRequest() {
   state.sel = null;
-  for (const id of ["url", "name", "body", "headers", "tests"]) $(id).value = "";
+  for (const id of ["url", "name", "body", "gql", "gqlvars", "headers", "tests"]) $(id).value = "";
+  setBodyType("raw");
   $("method").value = "GET";
   $("crumb").textContent = "Untitled request";
   renderTree();
@@ -84,8 +92,8 @@ function parseHeaders() {
 async function save() {
   const edited = {
     method: $("method").value, url: $("url").value.trim(), headers: parseHeaders(),
-    body_raw: $("body").value, assertions: $("tests").value,
-    header_key: "", header_val: "", header_auth: "", body_type: "raw",
+    ...bodyFields(), assertions: $("tests").value,
+    header_key: "", header_val: "", header_auth: "",
   };
   edited.name = $("name").value.trim() || `${edited.method} ${edited.url.split("?")[0].split("/").pop() || "request"}`;
   if (state.sel) {
@@ -110,8 +118,23 @@ async function save() {
   renderTree();
 }
 
+function isGraphQL() { return $("bodytype").value === "graphql"; }
+
+function setBodyType(type) {
+  $("bodytype").value = type;
+  $("body").hidden = type === "graphql";
+  $("gql-pane").hidden = type !== "graphql";
+}
+
+// bodyFields returns the collection-item body fields for the active body type.
+function bodyFields() {
+  return isGraphQL()
+    ? { body_type: "graphql", body_raw: $("gql").value, variables: $("gqlvars").value }
+    : { body_type: "raw", body_raw: $("body").value, variables: "" };
+}
+
 function formatBody() {
-  const body = $("body");
+  const body = isGraphQL() ? $("gqlvars") : $("body");
   if (!body.value.trim()) return;
   try {
     body.value = JSON.stringify(JSON.parse(body.value), null, 2);
@@ -123,23 +146,47 @@ function formatBody() {
 // ---------- request / response ----------
 
 async function send() {
+  if (state.sending) return api.StopStream(); // Send doubles as Stop while a request is open
   const btn = $("send");
-  if (btn.disabled) return;
-  btn.disabled = true;
-  btn.firstChild.textContent = "Sending ";
+  state.sending = true;
+  state.events = 0;
+  btn.firstChild.textContent = "Stop ";
+  btn.classList.add("stop");
+  const b = bodyFields();
   const payload = {
     Method: $("method").value, URL: $("url").value.trim(), Headers: parseHeaders(),
-    BodyType: "raw", BodyRaw: $("body").value, Assertions: $("tests").value,
+    BodyType: b.body_type, BodyRaw: b.body_raw, Variables: b.variables, Assertions: $("tests").value,
   };
   const res = await api.Send(payload, $("env").value);
-  btn.disabled = false;
+  state.sending = false;
   btn.firstChild.textContent = "Send ";
+  btn.classList.remove("stop");
   if (!res.error && state.last && !state.last.error) state.prev = state.last.body;
   state.last = res;
   state.diff = false;
   state.showLarge = false;
   $("diff").classList.remove("on");
   renderResponse();
+}
+
+// onEvent shows an SSE event as soon as it arrives, keeping only the newest ones.
+function onEvent(text) {
+  if (!state.sending) return;
+  const out = $("output");
+  if (state.events === 0) {
+    out.textContent = "";
+    $("large").hidden = true;
+    $("status").textContent = "Streaming";
+    $("status").className = "status ok";
+  }
+  state.events++;
+  $("meta").textContent = `${state.events} event${state.events === 1 ? "" : "s"}`;
+  const line = document.createElement("span");
+  line.className = "event";
+  line.textContent = text.trimEnd();
+  out.append(line);
+  while (out.childElementCount > MAX_EVENTS) out.firstElementChild.remove();
+  out.scrollTop = out.scrollHeight;
 }
 
 function renderResponse() {
@@ -153,7 +200,9 @@ function renderResponse() {
   } else {
     status.textContent = `${r.status} ${r.statusText}`;
     status.className = `status ${r.status < 300 ? "ok" : r.status < 400 ? "warn" : "err"}`;
-    $("meta").textContent = `${r.durationMs} ms · ${formatBytes(r.size)}`;
+    $("meta").textContent = r.stream
+      ? `stream closed · ${state.events} events · ${(r.durationMs / 1000).toFixed(1)} s`
+      : `${r.durationMs} ms · ${formatBytes(r.size)}`;
   }
   renderTests(r);
   renderOutput();
@@ -268,6 +317,8 @@ bindTabs("res", (name) => { state.resTab = name; renderOutput(); });
 $("send").onclick = send;
 $("save").onclick = save;
 $("format").onclick = formatBody;
+$("bodytype").onchange = (e) => setBodyType(e.target.value);
+window.runtime?.EventsOn("sse", onEvent);
 $("new-request").onclick = newRequest;
 $("tree-filter").oninput = renderTree;
 $("show-large").onclick = () => { state.showLarge = true; renderOutput(); };

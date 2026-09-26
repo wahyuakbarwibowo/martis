@@ -32,6 +32,7 @@ Dokumentasi lengkap: **https://wahyuakbarwibowo.github.io/martis/**
 - **Request berantai**: simpan nilai response ke variabel (`set token = json.access_token`) lalu pakai `{{token}}` di request berikutnya.
 - **Environment & variabel**: file `.env` per environment, `{{variable}}` di URL, header, dan body.
 - **Alat bantu response**: format JSON, filter `json.path`, diff dengan response sebelumnya, assertion (`Status == 200`).
+- **GraphQL & SSE**: kirim query GraphQL beserta variables, dan lihat Server-Sent Events muncul langsung satu per satu.
 - **Import**: Postman collection & environment, OpenAPI 3, dan perintah cURL; export ke cURL.
 - **Siap CI**: `martis run --env prod <folder>` menjalankan satu folder dan gagal bila ada assertion yang tidak lolos.
 - **Update satu perintah**: `martis update`.
@@ -145,7 +146,7 @@ Keluar dengan `q` atau `Ctrl+C`. Semua shortcut TUI ada di bagian Keyboard Short
 | `Ctrl+Y` / `Ctrl+O` | Salin response / simpan ke file |
 | `Ctrl+B` | Jalankan benchmark request |
 | `F4` | Rapikan (format) body JSON request |
-| `Ctrl+S` | Kirim HTTP Request |
+| `Ctrl+S` | Kirim HTTP Request (saat streaming SSE: hentikan stream) |
 | `Enter` | Kirim request (saat di URL bar / Send button) atau Konfirmasi modal |
 | `d` / `Backspace` | Hapus request terpilih di sidebar atau modal Collection |
 | `r` | Rename folder atau request terpilih di sidebar |
@@ -182,6 +183,10 @@ Status == 200
 json.data.id != nil
 set token = json.access_token
 ```
+
+**GraphQL**: di desktop pilih **GraphQL** pada dropdown di bar tab Body, lalu isi query dan variables. Di TUI buka tab **GQL** dan tulis query, lalu baris `### variables` diikuti JSON variables. Martis mengirimnya sebagai `{"query": ..., "variables": ...}` dengan `Content-Type: application/json`, dan `{{variable}}` tetap berlaku.
+
+**Server-Sent Events**: bila response bertipe `text/event-stream`, setiap event tampil begitu datang. Tombol Send berubah jadi **Stop** di desktop; di TUI tekan `Ctrl+S` untuk menghentikan.
 
 Baris `set` menyimpan nilai dari response ke environment aktif, sehingga request berikutnya bisa memakai `{{token}}` (juga berlaku saat `martis run`). Response di atas 1 MB tidak langsung ditampilkan: tekan `Enter` di panel response untuk tetap menampilkan, `/` untuk filter, atau `Ctrl+O` untuk menyimpan ke file.
 

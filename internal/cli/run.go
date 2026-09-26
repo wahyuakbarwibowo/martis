@@ -30,7 +30,7 @@ func RunFolder(col *domain.Collection, folder string, vars map[string]string, do
 	}
 	failed := 0
 	for _, it := range items {
-		p := domain.RequestPayload{Method: it.Method, URL: it.URL, HeaderKey: it.HeaderKey, HeaderVal: it.HeaderVal, HeaderAuth: it.HeaderAuth, BodyType: it.BodyType, BodyRaw: it.BodyRaw, BodyFile: it.BodyFile, FormKey: it.FormKey, FormPath: it.FormPath, FormFields: it.FormFields, FormFiles: it.FormFiles, Headers: it.Headers, Auth: it.Auth, Assertions: it.Assertions}
+		p := domain.RequestPayload{Method: it.Method, URL: it.URL, HeaderKey: it.HeaderKey, HeaderVal: it.HeaderVal, HeaderAuth: it.HeaderAuth, BodyType: it.BodyType, BodyRaw: it.BodyRaw, Variables: it.Variables, BodyFile: it.BodyFile, FormKey: it.FormKey, FormPath: it.FormPath, FormFields: it.FormFields, FormFiles: it.FormFiles, Headers: it.Headers, Auth: it.Auth, Assertions: it.Assertions}
 		prepared, err := requestutil.Prepare(p, vars)
 		var problems []string
 		r := domain.ResponseResult{Err: err}

@@ -34,14 +34,12 @@ func NewClient(userAgent ...string) Client {
 	return &defaultHTTPClient{userAgent: ua}
 }
 
-// Do mengeksekusi request HTTP dan mengembalikan struct response bersih
-func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseResult {
-	startTime := time.Now()
-
+// buildRequest turns a payload into an *http.Request (auth, body, headers).
+func (c *defaultHTTPClient) buildRequest(payload domain.RequestPayload) (*http.Request, error) {
 	if payload.Auth.Mode == "oauth2" && payload.Auth.Token == "" {
 		token, err := OAuthToken(payload.Auth)
 		if err != nil {
-			return domain.ResponseResult{Err: err, Duration: time.Since(startTime)}
+			return nil, err
 		}
 		payload.HeaderAuth = "Bearer " + token
 	}
@@ -66,7 +64,7 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 			if payload.BodyFile != "" {
 				data, err := os.ReadFile(payload.BodyFile)
 				if err != nil {
-					return domain.ResponseResult{Err: fmt.Errorf("read body file error: %w", err), Duration: time.Since(startTime)}
+					return nil, fmt.Errorf("read body file error: %w", err)
 				}
 				reqBody = bytes.NewReader(data)
 			} else {
@@ -78,7 +76,7 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 			for _, field := range payload.FormFields {
 				if strings.TrimSpace(field.Key) != "" {
 					if err := writer.WriteField(field.Key, field.Value); err != nil {
-						return domain.ResponseResult{Err: fmt.Errorf("write form field error: %w", err), Duration: time.Since(startTime)}
+						return nil, fmt.Errorf("write form field error: %w", err)
 					}
 				}
 			}
@@ -93,7 +91,7 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 			for _, field := range files {
 				file, err := os.Open(field.Value)
 				if err != nil {
-					return domain.ResponseResult{Err: fmt.Errorf("open file error: %w", err), Duration: time.Since(startTime)}
+					return nil, fmt.Errorf("open file error: %w", err)
 				}
 				part, err := writer.CreateFormFile(field.Key, filepath.Base(field.Value))
 				if err == nil {
@@ -101,7 +99,7 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 				}
 				_ = file.Close()
 				if err != nil {
-					return domain.ResponseResult{Err: fmt.Errorf("write form file error: %w", err), Duration: time.Since(startTime)}
+					return nil, fmt.Errorf("write form file error: %w", err)
 				}
 			}
 
@@ -113,10 +111,7 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 
 	req, err := http.NewRequest(method, targetURL, reqBody)
 	if err != nil {
-		return domain.ResponseResult{
-			Err:      fmt.Errorf("invalid request: %w", err),
-			Duration: time.Since(startTime),
-		}
+		return nil, fmt.Errorf("invalid request: %w", err)
 	}
 
 	// Apply Headers
@@ -135,6 +130,16 @@ func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseRes
 		req.Header.Set("Authorization", payload.HeaderAuth)
 	}
 	req.Header.Set("User-Agent", c.userAgent)
+	return req, nil
+}
+
+// Do mengeksekusi request HTTP dan mengembalikan struct response bersih
+func (c *defaultHTTPClient) Do(payload domain.RequestPayload) domain.ResponseResult {
+	startTime := time.Now()
+	req, err := c.buildRequest(payload)
+	if err != nil {
+		return domain.ResponseResult{Err: err, Duration: time.Since(startTime)}
+	}
 
 	timeout := payload.TimeoutSecs
 	if timeout <= 0 {

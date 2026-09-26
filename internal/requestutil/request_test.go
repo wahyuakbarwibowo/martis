@@ -2,6 +2,7 @@ package requestutil
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"martis/internal/domain"
 	"testing"
 )
@@ -58,5 +59,30 @@ func TestJSONPathArraysAndObjects(t *testing.T) {
 		if _, ok := JSONPath(body, path); ok {
 			t.Fatalf("%s should be missing", path)
 		}
+	}
+}
+
+func TestPrepareGraphQLWrapsQueryAndVariables(t *testing.T) {
+	p := domain.RequestPayload{Method: "POST", URL: "{{base}}/graphql", BodyType: "graphql",
+		BodyRaw: "query ($id: ID!) { user(id: $id) { name } }", Variables: `{"id": "{{uid}}"}`}
+	got, err := Prepare(p, map[string]string{"base": "https://api.test", "uid": "42"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body struct {
+		Query     string         `json:"query"`
+		Variables map[string]any `json:"variables"`
+	}
+	if err := json.Unmarshal([]byte(got.BodyRaw), &body); err != nil {
+		t.Fatalf("body is not JSON: %q", got.BodyRaw)
+	}
+	if got.BodyType != "raw" || body.Query != p.BodyRaw || body.Variables["id"] != "42" {
+		t.Fatalf("unexpected GraphQL body: %+v / %q", body, got.BodyRaw)
+	}
+	if len(got.Headers) != 1 || got.Headers[0].Value != "application/json" {
+		t.Fatalf("missing JSON content type: %+v", got.Headers)
+	}
+	if _, err := Prepare(domain.RequestPayload{BodyType: "graphql", Variables: "[1]"}, nil); err == nil {
+		t.Fatal("expected error for non-object variables")
 	}
 }

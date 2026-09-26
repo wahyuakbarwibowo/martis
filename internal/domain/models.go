@@ -40,8 +40,9 @@ type RequestPayload struct {
 	HeaderKey   string
 	HeaderVal   string
 	HeaderAuth  string
-	BodyType    string // "raw" atau "form"
+	BodyType    string // "raw", "form", atau "graphql" (BodyRaw berisi query)
 	BodyRaw     string
+	Variables   string // variables GraphQL dalam JSON
 	BodyFile    string
 	FormKey     string
 	FormPath    string
@@ -73,8 +74,9 @@ type CollectionItem struct {
 	HeaderKey  string     `json:"header_key,omitempty"`
 	HeaderVal  string     `json:"header_val,omitempty"`
 	HeaderAuth string     `json:"header_auth,omitempty"`
-	BodyType   string     `json:"body_type"` // "raw" atau "form"
+	BodyType   string     `json:"body_type"` // "raw", "form", atau "graphql"
 	BodyRaw    string     `json:"body_raw,omitempty"`
+	Variables  string     `json:"variables,omitempty"`
 	BodyFile   string     `json:"body_file,omitempty"`
 	FormKey    string     `json:"form_key,omitempty"`
 	FormPath   string     `json:"form_path,omitempty"`

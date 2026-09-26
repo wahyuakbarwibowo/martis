@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -54,12 +55,25 @@ const (
 	TabQuery
 	TabAuth
 	TabAssertions
+	TabGraphQL
 )
 
-const totalTabs = 6
+const totalTabs = 7
+
+// usesConfigEditor reports whether the tab is edited through the shared configEditor.
+func (t ConfigTab) usesConfigEditor() bool {
+	switch t {
+	case TabHeaders, TabQuery, TabAuth, TabAssertions, TabGraphQL:
+		return true
+	}
+	return false
+}
+
+// gqlSeparator splits the GraphQL query from its JSON variables in the GQL tab.
+const gqlSeparator = "### variables"
 
 func configTabAtX(x int) ConfigTab {
-	labels := []string{"Hdr", "JSON", "Form", "Query", "Auth", "Tests"}
+	labels := []string{"Hdr", "JSON", "Form", "Query", "Auth", "Tests", "GQL"}
 	for i, label := range labels {
 		width := lipgloss.Width(styles.InactiveTab.Render(label))
 		if x < width {
@@ -67,7 +81,7 @@ func configTabAtX(x int) ConfigTab {
 		}
 		x -= width
 	}
-	return TabAssertions
+	return TabGraphQL
 }
 
 var responseTabNames = []string{"Body", "Headers", "Cookies"}
@@ -197,6 +211,13 @@ type Model struct {
 	themeIndex        int
 	responseTab       int
 	responseSearch    string
+	gqlQuery          string
+	gqlVars           string
+	graphql           bool // body is sent as GraphQL (last body tab used was GQL)
+	streamCancel      context.CancelFunc
+	streamCh          chan tea.Msg
+	streamEvents      int
+	streamText        *strings.Builder
 	prevResponseBody  string
 	responseDiff      bool
 	showLargeBody     bool
@@ -402,7 +423,7 @@ func (m *Model) updateFocusStates() {
 		case TabBodyForm:
 			m.formEditor.Focus()
 		}
-		if m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions || m.tab == TabHeaders {
+		if m.tab.usesConfigEditor() {
 			m.configEditor.Focus()
 		}
 	}
@@ -425,7 +446,11 @@ func (m *Model) loadCollectionItem(item domain.CollectionItem) {
 	m.assertions = item.Assertions
 	m.syncEditorFromTab()
 
-	if item.BodyType == "form" {
+	m.graphql = item.BodyType == "graphql"
+	if m.graphql {
+		m.tab = TabGraphQL
+		m.gqlQuery, m.gqlVars = item.BodyRaw, item.Variables
+	} else if item.BodyType == "form" {
 		m.tab = TabBodyForm
 		m.formKey.SetValue(item.FormKey)
 		m.formFilePath.SetValue(item.FormPath)
@@ -466,6 +491,8 @@ func (m *Model) syncEditorFromTab() {
 		text = string(data)
 	case TabAssertions:
 		text = m.assertions
+	case TabGraphQL:
+		text = m.gqlQuery + "\n" + gqlSeparator + "\n" + m.gqlVars
 	}
 	m.configEditor.SetValue(strings.TrimSuffix(text, "\n"))
 }
@@ -563,6 +590,9 @@ func (m *Model) syncTabFromEditor() error {
 		m.auth = auth
 	case TabAssertions:
 		m.assertions = text
+	case TabGraphQL:
+		query, vars, _ := strings.Cut(text, gqlSeparator)
+		m.gqlQuery, m.gqlVars = strings.TrimSpace(query), strings.TrimSpace(vars)
 	}
 	return nil
 }
@@ -581,7 +611,7 @@ func (m *Model) saveCurrentToCollection(name string) {
 	if m.collection == nil {
 		m.collection = &domain.Collection{Name: "Default Workspace", Folders: []domain.Folder{{ID: "folder-default", Name: "My Requests", IsExpanded: true}}}
 	}
-	if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
+	if m.tab.usesConfigEditor() {
 		if err := m.syncTabFromEditor(); err != nil {
 			m.status = err.Error()
 			return
@@ -595,8 +625,14 @@ func (m *Model) saveCurrentToCollection(name string) {
 	if m.tab == TabBodyForm {
 		bodyType = "form"
 	}
+	m.trackBodyMode()
+	bodyRaw, variables := m.jsonBody.Value(), ""
+	if m.graphql {
+		bodyType, bodyRaw, variables = "graphql", m.gqlQuery, m.gqlVars
+	}
 
 	newItem := domain.CollectionItem{
+		Variables:  variables,
 		Headers:    append([]domain.KeyValue(nil), m.extraHeaders...),
 		Auth:       m.auth,
 		Assertions: m.assertions,
@@ -608,7 +644,7 @@ func (m *Model) saveCurrentToCollection(name string) {
 		HeaderVal:  m.headerVal.Value(),
 		HeaderAuth: m.headerAuth.Value(),
 		BodyType:   bodyType,
-		BodyRaw:    m.jsonBody.Value(),
+		BodyRaw:    bodyRaw,
 		BodyFile:   m.bodyFile,
 		FormKey:    m.formKey.Value(),
 		FormPath:   m.formFilePath.Value(),
@@ -646,6 +682,7 @@ func (m *Model) executeRequestCmd() tea.Cmd {
 	if m.tab == TabBodyForm {
 		bodyType = "form"
 	}
+	m.trackBodyMode()
 
 	payload := domain.RequestPayload{
 		Method:     m.methods[m.methodIndex],
@@ -662,7 +699,7 @@ func (m *Model) executeRequestCmd() tea.Cmd {
 		FormFiles:  append([]domain.KeyValue(nil), m.formFiles...),
 	}
 
-	if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
+	if m.tab.usesConfigEditor() {
 		if err := m.syncTabFromEditor(); err != nil {
 			return func() tea.Msg { return domain.ResponseResult{Err: err} }
 		}
@@ -673,6 +710,9 @@ func (m *Model) executeRequestCmd() tea.Cmd {
 	payload.Headers = append([]domain.KeyValue(nil), m.extraHeaders...)
 	payload.Auth = m.auth
 	payload.Assertions = m.assertions
+	if m.graphql {
+		payload.BodyType, payload.BodyRaw, payload.Variables, payload.BodyFile = "graphql", m.gqlQuery, m.gqlVars, ""
+	}
 	if m.tab == TabQuery {
 		if url, err := requestutil.WithQuery(payload.URL, m.queryRows); err == nil {
 			payload.URL = url
@@ -683,8 +723,41 @@ func (m *Model) executeRequestCmd() tea.Cmd {
 		return func() tea.Msg { return domain.ResponseResult{Err: prepErr} }
 	}
 	m.lastPayload = payload
+
+	// Run through Stream so Server-Sent Events show up as they arrive.
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan tea.Msg, 64)
+	m.streamCancel, m.streamCh, m.streamEvents, m.streamText = cancel, ch, 0, &strings.Builder{}
+	client := m.httpClient
+	go func() {
+		defer close(ch)
+		defer cancel()
+		ch <- httpclient.Stream(ctx, client, prepared, func(event string) { ch <- sseEventMsg(event) })
+	}()
+	return waitStream(ch)
+}
+
+// sseEventMsg carries one Server-Sent Event while a stream is open.
+type sseEventMsg string
+
+// waitStream delivers the next message from a running request.
+func waitStream(ch chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {
-		return m.httpClient.Do(prepared)
+		msg, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return msg
+	}
+}
+
+// trackBodyMode remembers whether the last body tab used was GQL or JSON/Form.
+func (m *Model) trackBodyMode() {
+	switch m.tab {
+	case TabGraphQL:
+		m.graphql = true
+	case TabBodyRaw, TabBodyForm:
+		m.graphql = false
 	}
 }
 
@@ -694,7 +767,7 @@ func (m *Model) currentPayload() domain.RequestPayload {
 	}
 	p := domain.RequestPayload{Method: m.methods[m.methodIndex], URL: m.urlInput.Value(), HeaderKey: m.headerKey.Value(), HeaderVal: m.headerVal.Value(), HeaderAuth: m.headerAuth.Value(), BodyType: "raw", BodyRaw: m.jsonBody.Value(), FormKey: m.formKey.Value(), FormPath: m.formFilePath.Value(), FormFields: append([]domain.KeyValue(nil), m.formFields...), FormFiles: append([]domain.KeyValue(nil), m.formFiles...), Headers: append([]domain.KeyValue(nil), m.extraHeaders...), Auth: m.auth, Assertions: m.assertions}
 	p.BodyFile = m.bodyFile
-	if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
+	if m.tab.usesConfigEditor() {
 		_ = m.syncTabFromEditor()
 		p.HeaderKey = m.headerKey.Value()
 		p.HeaderVal = m.headerVal.Value()
@@ -706,6 +779,10 @@ func (m *Model) currentPayload() domain.RequestPayload {
 	if m.tab == TabBodyForm {
 		p.BodyType = "form"
 	}
+	m.trackBodyMode()
+	if m.graphql {
+		p.BodyType, p.BodyRaw, p.Variables, p.BodyFile = "graphql", m.gqlQuery, m.gqlVars, ""
+	}
 	if m.tab == TabQuery {
 		_ = m.syncTabFromEditor()
 		if u, err := requestutil.WithQuery(p.URL, m.queryRows); err == nil {
@@ -716,7 +793,7 @@ func (m *Model) currentPayload() domain.RequestPayload {
 }
 
 func (m *Model) payloadToItem(p domain.RequestPayload) domain.CollectionItem {
-	return domain.CollectionItem{ID: fmt.Sprintf("history-%d", time.Now().UnixNano()), Name: p.Method + " " + filepath.Base(p.URL), Method: p.Method, URL: p.URL, HeaderKey: p.HeaderKey, HeaderVal: p.HeaderVal, HeaderAuth: p.HeaderAuth, BodyType: p.BodyType, BodyRaw: p.BodyRaw, BodyFile: p.BodyFile, FormKey: p.FormKey, FormPath: p.FormPath, FormFields: append([]domain.KeyValue(nil), p.FormFields...), FormFiles: append([]domain.KeyValue(nil), p.FormFiles...), Headers: append([]domain.KeyValue(nil), p.Headers...), Auth: p.Auth, Assertions: p.Assertions}
+	return domain.CollectionItem{ID: fmt.Sprintf("history-%d", time.Now().UnixNano()), Name: p.Method + " " + filepath.Base(p.URL), Method: p.Method, URL: p.URL, HeaderKey: p.HeaderKey, HeaderVal: p.HeaderVal, HeaderAuth: p.HeaderAuth, BodyType: p.BodyType, BodyRaw: p.BodyRaw, BodyFile: p.BodyFile, FormKey: p.FormKey, FormPath: p.FormPath, FormFields: append([]domain.KeyValue(nil), p.FormFields...), FormFiles: append([]domain.KeyValue(nil), p.FormFiles...), Headers: append([]domain.KeyValue(nil), p.Headers...), Auth: p.Auth, Assertions: p.Assertions, Variables: p.Variables}
 }
 
 func formatResponseHeaders(headers http.Header) string {
@@ -1249,7 +1326,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			requestWidth := (m.width - 34) / 2
 			if msg.Y == 4 && requestWidth > 0 && msg.X >= 30 && msg.X < 30+requestWidth {
-				if m.tab == TabHeaders || m.tab == TabQuery || m.tab == TabAuth || m.tab == TabAssertions {
+				if m.tab.usesConfigEditor() {
 					if err := m.syncTabFromEditor(); err != nil {
 						m.status = err.Error()
 					}
@@ -1321,7 +1398,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, spCmd)
 		}
 
+	case sseEventMsg:
+		m.streamEvents++
+		m.streamText.WriteString(string(msg) + "\n")
+		if m.streamText.Len() > largeResponseBytes { // keep the view light on long streams
+			kept := m.streamText.String()[m.streamText.Len()-largeResponseBytes/2:]
+			m.streamText.Reset()
+			m.streamText.WriteString(kept)
+		}
+		m.status = fmt.Sprintf("Streaming · %d events · ^S stop", m.streamEvents)
+		if m.viewportReady {
+			m.viewport.SetContent(m.streamText.String())
+			m.viewport.GotoBottom()
+		}
+		return m, waitStream(m.streamCh)
 	case domain.ResponseResult:
+		m.streamCancel = nil
 		m.loading = false
 		if msg.Err == nil && m.lastResp != nil && m.lastResp.Err == nil {
 			m.prevResponseBody = m.lastResp.Body
@@ -1408,6 +1500,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "ctrl+s":
+			if m.loading && m.streamCancel != nil {
+				m.streamCancel() // stop an open event stream
+				return m, nil
+			}
 			if !m.loading {
 				m.loading = true
 				m.viewport.SetContent("Sending HTTP request...")
@@ -1919,7 +2015,7 @@ func (m Model) renderRequestBuilder(width int) string {
 	}
 	sections = append(sections, lipgloss.JoinHorizontal(lipgloss.Left, urlPrompt, m.urlInput.View()))
 
-	tabLabels := []string{"Hdr", "JSON", "Form", "Query", "Auth", "Tests"}
+	tabLabels := []string{"Hdr", "JSON", "Form", "Query", "Auth", "Tests", "GQL"}
 	var renderedTabs []string
 	for i, label := range tabLabels {
 		switch {
@@ -1950,13 +2046,16 @@ func (m Model) renderRequestBuilder(width int) string {
 			m.formEditor.View(),
 			styles.Faint.Render(" ^F choose a file, or edit rows directly"),
 		)
-	case TabQuery, TabAuth, TabAssertions:
+	case TabQuery, TabAuth, TabAssertions, TabGraphQL:
 		label := " Query · key=value per line"
 		if m.tab == TabAuth {
 			label = " Auth · JSON (none, bearer, basic, api-key, oauth2) · F3 presets"
 		}
 		if m.tab == TabAssertions {
 			label = " Tests · Status == 200 · json.id != nil · set token = json.access_token"
+		}
+		if m.tab == TabGraphQL {
+			label = " GraphQL · query, then '" + gqlSeparator + "' and JSON variables"
 		}
 		configContent = lipgloss.JoinVertical(lipgloss.Left, styles.Label.Render(ansi.Truncate(label, width-2, "…")), m.configEditor.View())
 	}

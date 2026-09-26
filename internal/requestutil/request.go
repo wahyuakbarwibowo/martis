@@ -15,7 +15,7 @@ import (
 
 func Prepare(p domain.RequestPayload, vars map[string]string) (domain.RequestPayload, error) {
 	p.Headers = append([]domain.KeyValue(nil), p.Headers...)
-	fields := []*string{&p.URL, &p.BodyRaw, &p.HeaderKey, &p.HeaderVal, &p.HeaderAuth, &p.FormKey, &p.FormPath, &p.Auth.Token, &p.Auth.Username, &p.Auth.Password, &p.Auth.Key, &p.Auth.Value, &p.Auth.TokenURL, &p.Auth.Scope}
+	fields := []*string{&p.URL, &p.BodyRaw, &p.Variables, &p.HeaderKey, &p.HeaderVal, &p.HeaderAuth, &p.FormKey, &p.FormPath, &p.Auth.Token, &p.Auth.Username, &p.Auth.Password, &p.Auth.Key, &p.Auth.Value, &p.Auth.TokenURL, &p.Auth.Scope}
 	for i := range p.Headers {
 		fields = append(fields, &p.Headers[i].Key, &p.Headers[i].Value)
 	}
@@ -25,6 +25,11 @@ func Prepare(p domain.RequestPayload, vars map[string]string) (domain.RequestPay
 			return p, err
 		}
 		*field = value
+	}
+	if p.BodyType == "graphql" {
+		if err := graphQLBody(&p); err != nil {
+			return p, err
+		}
 	}
 	switch p.Auth.Mode {
 	case "", "none":
@@ -52,6 +57,35 @@ func Prepare(p domain.RequestPayload, vars map[string]string) (domain.RequestPay
 		return p, fmt.Errorf("unknown authentication mode %q", p.Auth.Mode)
 	}
 	return p, nil
+}
+
+// graphQLBody turns a GraphQL query plus JSON variables into a JSON POST body.
+func graphQLBody(p *domain.RequestPayload) error {
+	body := map[string]any{"query": p.BodyRaw}
+	if vars := strings.TrimSpace(p.Variables); vars != "" {
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(vars), &parsed); err != nil {
+			return fmt.Errorf("GraphQL variables harus berupa objek JSON: %w", err)
+		}
+		body["variables"] = parsed
+	}
+	data, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	p.BodyType, p.BodyRaw, p.BodyFile = "raw", string(data), ""
+	if strings.EqualFold(p.HeaderKey, "Content-Type") {
+		p.HeaderVal = "application/json"
+		return nil
+	}
+	for i := range p.Headers {
+		if strings.EqualFold(p.Headers[i].Key, "Content-Type") {
+			p.Headers[i].Value = "application/json"
+			return nil
+		}
+	}
+	p.Headers = append(p.Headers, domain.KeyValue{Key: "Content-Type", Value: "application/json"})
+	return nil
 }
 
 func Query(raw string) ([]domain.KeyValue, error) {

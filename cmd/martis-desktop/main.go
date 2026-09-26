@@ -31,6 +31,7 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 12, G: 12, B: 13, A: 255},
 		AssetServer:      &assetserver.Options{Assets: assets},
 		Bind:             []any{app},
+		OnStartup:        app.startup,
 		Linux:            &linux.Options{Icon: icon, ProgramName: "martis"},
 		Mac: &mac.Options{
 			TitleBar: mac.TitleBarHiddenInset(),
