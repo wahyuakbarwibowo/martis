@@ -28,3 +28,12 @@ func TestDiffLargeBodySmallChangeStaysCheap(t *testing.T) {
 		t.Fatalf("unexpected tail %q", got[len(got)-20:])
 	}
 }
+
+func TestIndentJSON(t *testing.T) {
+	if got := IndentJSON(`{"a":[1,2]}`); got != "{\n  \"a\": [\n    1,\n    2\n  ]\n}" {
+		t.Fatalf("got %q", got)
+	}
+	if got := IndentJSON("not json"); got != "not json" {
+		t.Fatalf("non-JSON changed: %q", got)
+	}
+}
