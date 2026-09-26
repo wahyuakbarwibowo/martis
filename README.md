@@ -143,7 +143,7 @@ Keluar dengan `q` atau `Ctrl+C`. Semua shortcut TUI ada di bagian Keyboard Short
 | `F3` | Pilih preset autentikasi |
 | `/` | Cari teks di response, atau filter JSON dengan `json.data.0.id` |
 | `Ctrl+D` | Bandingkan (diff) response saat ini dengan response sebelumnya |
-| `Ctrl+Y` / `Ctrl+O` | Salin response / simpan ke file |
+| `Ctrl+Y` / `Ctrl+O` | Salin response / download response ke `~/Downloads` |
 | `Ctrl+B` | Jalankan benchmark request |
 | `F4` | Rapikan (format) body JSON request |
 | `Ctrl+S` | Kirim HTTP Request (saat streaming SSE: hentikan stream) |
@@ -188,7 +188,10 @@ set token = json.access_token
 
 **Server-Sent Events**: bila response bertipe `text/event-stream`, setiap event tampil begitu datang. Tombol Send berubah jadi **Stop** di desktop; di TUI tekan `Ctrl+S` untuk menghentikan.
 
-Baris `set` menyimpan nilai dari response ke environment aktif, sehingga request berikutnya bisa memakai `{{token}}` (juga berlaku saat `martis run`). Response di atas 1 MB tidak langsung ditampilkan: tekan `Enter` di panel response untuk tetap menampilkan, `/` untuk filter, atau `Ctrl+O` untuk menyimpan ke file.
+Baris `set` menyimpan nilai dari response ke environment aktif, sehingga request berikutnya bisa memakai `{{token}}` (juga berlaku saat `martis run`). Response di atas 1 MB dan response berupa file (PDF, Excel, Word, PowerPoint, gambar, ZIP, CSV, dll.) tidak langsung ditampilkan. Martis menampilkan jenis, nama file (dari header `Content-Disposition`), dan ukurannya, lalu kamu pilih:
+
+- **Download**: `Ctrl+O` di TUI (disimpan ke `~/Downloads` tanpa menimpa file lama), atau tombol **Download** di desktop (dialog simpan).
+- **Tampilkan**: `Enter` di TUI atau tombol **Show** di desktop. Tidak tersedia untuk file biner seperti PDF atau gambar.
 
 ---
 

@@ -157,7 +157,7 @@ set token = json.access_token</code></pre>
           <li><b>Format otomatis</b>: response JSON selalu ditampilkan rapi.</li>
           <li><b>Filter</b>: ketik teks untuk mencari baris, atau <code>json.data.0.name</code> untuk mengambil nilai tertentu. Tombol <kbd>⌘</kbd> <kbd>F</kbd> (desktop) atau <kbd>/</kbd> (TUI).</li>
           <li><b>Diff</b>: bandingkan dengan response sukses sebelumnya lewat <kbd>⌘</kbd> <kbd>D</kbd> atau <kbd>Ctrl</kbd> <kbd>D</kbd>.</li>
-          <li><b>Response besar</b>: di atas 1 MB, Martis meminta konfirmasi sebelum menampilkan agar tetap ringan. Di TUI, simpan ke file dengan <kbd>Ctrl</kbd> <kbd>O</kbd>.</li>
+          <li><b>Response besar &amp; file</b>: response di atas 1 MB atau berupa file (PDF, Excel, Word, gambar, ZIP, CSV, dll.) tidak langsung ditampilkan. Martis menunjukkan jenis, nama file, dan ukurannya, lalu kamu pilih <b>Download</b> (<kbd>Ctrl</kbd> <kbd>O</kbd> di TUI ke <code>~/Downloads</code>, atau dialog simpan di desktop) atau <b>Tampilkan</b> (<kbd>Enter</kbd> / tombol Show; tidak tersedia untuk file biner).</li>
         </ul>
       </section>
 
@@ -226,7 +226,7 @@ martis import staging.postman_environment.json   <span class="c"># environment P
           <tr><td><kbd>Ctrl</kbd> <kbd>F</kbd></td><td>Pilih file (tab Form)</td></tr>
           <tr><td><kbd>/</kbd></td><td>Filter teks atau <code>json.path</code></td></tr>
           <tr><td><kbd>Ctrl</kbd> <kbd>D</kbd></td><td>Diff response</td></tr>
-          <tr><td><kbd>Ctrl</kbd> <kbd>Y</kbd> / <kbd>Ctrl</kbd> <kbd>O</kbd></td><td>Salin / simpan response</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>Y</kbd> / <kbd>Ctrl</kbd> <kbd>O</kbd></td><td>Salin / download response</td></tr>
           <tr><td><kbd>Ctrl</kbd> <kbd>B</kbd></td><td>Benchmark request</td></tr>
           <tr><td><kbd>F2</kbd> / <kbd>F3</kbd> / <kbd>F4</kbd></td><td>Tema / preset auth / rapikan body JSON</td></tr>
           <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Ganti method</td></tr>
