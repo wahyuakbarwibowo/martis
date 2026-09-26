@@ -50,3 +50,14 @@ func TestPostmanEnvironmentImport(t *testing.T) {
 		t.Fatal("collection must not be detected as environment")
 	}
 }
+
+func TestIDUnique(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 1000; i++ {
+		v := id()
+		if seen[v] {
+			t.Fatalf("duplicate id %s", v)
+		}
+		seen[v] = true
+	}
+}
