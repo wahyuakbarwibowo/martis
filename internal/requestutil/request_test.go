@@ -3,6 +3,7 @@ package requestutil
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"martis/internal/domain"
 	"testing"
 )
@@ -84,5 +85,18 @@ func TestPrepareGraphQLWrapsQueryAndVariables(t *testing.T) {
 	}
 	if _, err := Prepare(domain.RequestPayload{BodyType: "graphql", Variables: "[1]"}, nil); err == nil {
 		t.Fatal("expected error for non-object variables")
+	}
+}
+
+func TestQueryKeepsVarsAndBadEscapes(t *testing.T) {
+	raw := "{{base}}/x?id={{id}}&q=100%&tag=a&tag=b"
+	rows, _ := Query(raw)
+	want := []domain.KeyValue{{Key: "id", Value: "{{id}}"}, {Key: "q", Value: "100%"}, {Key: "tag", Value: "a"}, {Key: "tag", Value: "b"}}
+	if fmt.Sprint(rows) != fmt.Sprint(want) {
+		t.Fatalf("unexpected rows %v", rows)
+	}
+	got, _ := WithQuery(raw, rows)
+	if got != "{{base}}/x?id={{id}}&q=100%25&tag=a&tag=b" {
+		t.Fatalf("unexpected URL %q", got)
 	}
 }
