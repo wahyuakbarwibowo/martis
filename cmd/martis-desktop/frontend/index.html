@@ -32,32 +32,42 @@
         <option>GET</option><option>POST</option><option>PUT</option>
         <option>PATCH</option><option>DELETE</option><option>HEAD</option>
       </select>
-      <input id="url" class="url" placeholder="https://api.example.com/users" spellcheck="false" autocomplete="off">
+      <input id="name" class="name" placeholder="Request name" spellcheck="false">
+      <div class="spacer"></div>
+      <button id="save" class="ghost">Save <kbd>⌘S</kbd></button>
       <button id="send" class="primary">Send <kbd>⌘↵</kbd></button>
     </div>
-    <div class="tabs" data-group="req">
-      <button class="tab active" data-tab="body">Body</button>
-      <button class="tab" data-tab="headers">Headers</button>
-      <button class="tab" data-tab="tests">Tests</button>
-      <select id="bodytype" class="bodytype" title="Body type">
-        <option value="raw">JSON</option>
-        <option value="graphql">GraphQL</option>
-      </select>
-      <div class="spacer"></div>
-      <button id="format" class="ghost" title="Format JSON body">Format <kbd>⇧⌘F</kbd></button>
-      <input id="name" class="name" placeholder="Request name" spellcheck="false">
-      <button id="save" class="ghost">Save <kbd>⌘S</kbd></button>
+    <div class="form">
+      <label class="field-label" for="url">URL</label>
+      <textarea id="url" class="url grow" rows="1" placeholder="https://api.example.com/users" spellcheck="false" autocomplete="off"></textarea>
+      <details class="section" data-for="params">
+        <summary>Params <span class="count"></span></summary>
+        <textarea class="editor grow" id="params" spellcheck="false" placeholder="page=1&#10;q={{search}}"></textarea>
+      </details>
+      <details class="section" data-for="headers">
+        <summary>Headers <span class="count"></span></summary>
+        <textarea class="editor grow" id="headers" spellcheck="false" placeholder="Content-Type: application/json&#10;Authorization: Bearer {{token}}"></textarea>
+      </details>
+      <details class="section" data-for="body">
+        <summary>Body
+          <select id="bodytype" class="bodytype" title="Body type">
+            <option value="raw">JSON</option>
+            <option value="graphql">GraphQL</option>
+          </select>
+          <button id="format" class="ghost" title="Format JSON body">Format <kbd>⇧⌘F</kbd></button>
+        </summary>
+        <textarea class="editor grow" id="body" spellcheck="false" placeholder='{ "hello": "world" }'></textarea>
+        <div class="gql" id="gql-pane" hidden>
+          <textarea class="editor grow" id="gql" spellcheck="false" placeholder="query ($id: ID!) {&#10;  user(id: $id) { name }&#10;}"></textarea>
+          <div class="gql-label">Variables</div>
+          <textarea class="editor grow" id="gqlvars" spellcheck="false" placeholder='{ "id": "{{user_id}}" }'></textarea>
+        </div>
+      </details>
+      <details class="section" data-for="tests">
+        <summary>Tests <span class="count"></span></summary>
+        <textarea class="editor grow" id="tests" spellcheck="false" placeholder="Status == 200&#10;json.id != nil&#10;set token = json.access_token"></textarea>
+      </details>
     </div>
-    <div class="pane body-pane" data-pane="body">
-      <textarea class="editor" id="body" spellcheck="false" placeholder='{ "hello": "world" }'></textarea>
-      <div class="gql" id="gql-pane" hidden>
-        <textarea class="editor" id="gql" spellcheck="false" placeholder="query ($id: ID!) {&#10;  user(id: $id) { name }&#10;}"></textarea>
-        <div class="gql-label">Variables</div>
-        <textarea class="editor vars" id="gqlvars" spellcheck="false" placeholder='{ "id": "{{user_id}}" }'></textarea>
-      </div>
-    </div>
-    <textarea class="editor pane" data-pane="headers" id="headers" spellcheck="false" placeholder="Content-Type: application/json&#10;Authorization: Bearer {{token}}" hidden></textarea>
-    <textarea class="editor pane" data-pane="tests" id="tests" spellcheck="false" placeholder="Status == 200&#10;json.id != nil&#10;set token = json.access_token" hidden></textarea>
   </main>
 
   <section class="response">
