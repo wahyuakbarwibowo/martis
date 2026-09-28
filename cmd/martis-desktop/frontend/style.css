@@ -96,7 +96,8 @@ button { cursor: default; border: 0; background: none; border-radius: 6px; paddi
   height: 26px; padding: 0 8px; border-radius: 5px; white-space: nowrap;
 }
 .folder { color: var(--text); }
-.folder .chev { color: var(--muted); width: 10px; font-size: 11px; }
+.folder .chev { display: inline-block; color: var(--muted); width: 10px; font-size: 15px; line-height: 1; text-align: center; transition: transform 0.12s; }
+.folder .chev.open { transform: rotate(90deg); }
 .item { padding-left: 26px; }
 .item .name, .folder .name { overflow: hidden; text-overflow: ellipsis; }
 .folder:hover, .item:hover { background: var(--raised); }

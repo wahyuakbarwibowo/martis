@@ -24,7 +24,6 @@ const state = {
 async function loadCollections() {
   state.col = (await api.Collections()) || { name: "Collections", folders: [] };
   state.col.folders ||= [];
-  flatFolders().forEach(({ folder }) => folder.is_expanded && state.open.add(folder.id));
   renderTree();
 }
 
@@ -53,7 +52,7 @@ function renderTree() {
     if (q && !items.length) return;
     const open = q || state.open.has(folder.id);
     if (!open) hideBelow = depth;
-    const row = el("div", "folder", [el("span", "chev", [open ? "▾" : "▸"]), el("span", "name", [q ? path : folder.name])]);
+    const row = el("div", "folder", [el("span", open ? "chev open" : "chev", ["›"]), el("span", "name", [q ? path : folder.name])]);
     if (!q) row.style.paddingLeft = `${depth * 14 + 8}px`;
     row.onclick = () => { state.open.has(folder.id) ? state.open.delete(folder.id) : state.open.add(folder.id); renderTree(); };
     tree.append(row);
