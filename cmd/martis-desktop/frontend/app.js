@@ -24,7 +24,6 @@ const state = {
 async function loadCollections() {
   state.col = (await api.Collections()) || { name: "Collections", folders: [] };
   state.col.folders ||= [];
-  flatFolders().forEach(({ folder }) => folder.is_expanded && state.open.add(folder.id));
   renderTree();
 }
 
@@ -53,7 +52,7 @@ function renderTree() {
     if (q && !items.length) return;
     const open = q || state.open.has(folder.id);
     if (!open) hideBelow = depth;
-    const row = el("div", "folder", [el("span", "chev", [open ? "▾" : "▸"]), el("span", "name", [q ? path : folder.name])]);
+    const row = el("div", "folder", [el("span", open ? "chev open" : "chev", ["›"]), el("span", "name", [q ? path : folder.name])]);
     if (!q) row.style.paddingLeft = `${depth * 14 + 8}px`;
     row.onclick = () => { state.open.has(folder.id) ? state.open.delete(folder.id) : state.open.add(folder.id); renderTree(); };
     tree.append(row);
@@ -73,6 +72,7 @@ function loadItem(f, i) {
   state.sel = { f, i };
   $("method").value = it.method || "GET";
   $("url").value = it.url || "";
+  syncParams();
   $("name").value = it.name || "";
   const gql = it.body_type === "graphql";
   setBodyType(gql ? "graphql" : "raw");
@@ -87,15 +87,17 @@ function loadItem(f, i) {
   for (const h of it.headers || []) lines.push(`${h.key}: ${h.value}`);
   $("headers").value = lines.join("\n");
   $("crumb").textContent = `${flatFolders()[f].path} / ${it.name}`;
+  refreshForm(true);
   renderTree();
 }
 
 function newRequest() {
   state.sel = null;
-  for (const id of ["url", "name", "body", "gql", "gqlvars", "headers", "tests"]) $(id).value = "";
+  for (const id of ["url", "name", "body", "gql", "gqlvars", "params", "headers", "tests"]) $(id).value = "";
   setBodyType("raw");
   $("method").value = "GET";
   $("crumb").textContent = "Untitled request";
+  refreshForm(true);
   renderTree();
   $("url").focus();
 }
@@ -142,6 +144,7 @@ function setBodyType(type) {
   $("bodytype").value = type;
   $("body").hidden = type === "graphql";
   $("gql-pane").hidden = type !== "graphql";
+  document.querySelectorAll("#gql-pane .grow, #body").forEach(grow);
 }
 
 // bodyFields returns the collection-item body fields for the active body type.
@@ -339,7 +342,6 @@ function bindTabs(group, onChange) {
 
 // ---------- wiring ----------
 
-bindTabs("req", (name) => document.querySelectorAll(".request .pane").forEach((p) => { p.hidden = p.dataset.pane !== name; }));
 bindTabs("res", (name) => { state.resTab = name; renderOutput(); });
 $("send").onclick = send;
 $("save").onclick = save;
@@ -357,7 +359,37 @@ $("download").onclick = async () => {
     flash(`Download failed: ${e}`, true);
   }
 };
-$("url").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+// Params mirrors the URL query one pair per line; text is kept raw so {{vars}} survive.
+function syncParams() {
+  const q = $("url").value.split("#")[0].split("?")[1] || "";
+  $("params").value = q.split("&").filter(Boolean).join("\n");
+}
+$("url").addEventListener("input", syncParams);
+$("params").addEventListener("input", () => {
+  const [rest, frag] = $("url").value.split(/#(.*)/s);
+  const q = $("params").value.split("\n").map((l) => l.trim()).filter(Boolean).join("&");
+  $("url").value = rest.split("?")[0] + (q ? `?${q}` : "") + (frag !== undefined ? `#${frag}` : "");
+});
+$("url").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); send(); } });
+// The URL wraps instead of scrolling sideways; pasted newlines are dropped.
+$("url").addEventListener("input", (e) => { if (/\n/.test(e.target.value)) { e.target.value = e.target.value.replace(/\s*\n\s*/g, ""); syncParams(); } });
+// Controls inside a section header must not toggle the section.
+document.querySelectorAll(".section summary").forEach((sm) => sm.addEventListener("click", (e) => { if (e.target.closest("select, button")) e.preventDefault(); }));
+
+// Textareas grow with their content so the form scrolls as a whole.
+function grow(t) { t.style.height = "auto"; t.style.height = `${t.scrollHeight}px`; }
+function refreshForm(openFilled) {
+  document.querySelectorAll(".grow").forEach(grow);
+  document.querySelectorAll(".section").forEach((d) => {
+    const n = $(d.dataset.for).value.split("\n").filter((l) => l.trim()).length;
+    const count = d.querySelector(".count");
+    if (count) count.textContent = n ? `(${n})` : "";
+    if (openFilled) d.open = n > 0 || (d.dataset.for === "body" && !$("gql-pane").hidden);
+  });
+}
+document.querySelector(".form").addEventListener("input", () => refreshForm(false));
+document.querySelector(".form").addEventListener("toggle", (e) => e.target.querySelectorAll(".grow").forEach(grow), true);
+window.addEventListener("resize", () => refreshForm(false));
 let filterTimer;
 $("filter").oninput = () => { clearTimeout(filterTimer); filterTimer = setTimeout(renderOutput, 150); };
 $("diff").onclick = () => {
