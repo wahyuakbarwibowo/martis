@@ -88,44 +88,66 @@ func graphQLBody(p *domain.RequestPayload) error {
 	return nil
 }
 
+// splitURL splits raw into base, query and fragment without url.Parse, so
+// {{vars}} and malformed escapes survive untouched.
+func splitURL(raw string) (base, query, frag string) {
+	raw, frag, hasFrag := strings.Cut(raw, "#")
+	if hasFrag {
+		frag = "#" + frag
+	}
+	base, query, _ = strings.Cut(raw, "?")
+	return base, query, frag
+}
+
+// unescape decodes s, falling back to the raw text on invalid escapes.
+func unescape(s string) string {
+	if v, err := url.QueryUnescape(s); err == nil {
+		return v
+	}
+	return s
+}
+
+// escape query-escapes s but keeps {{var}} placeholders readable.
+func escape(s string) string {
+	var b strings.Builder
+	for {
+		i := strings.Index(s, "{{")
+		j := strings.Index(s[max(i, 0):], "}}")
+		if i < 0 || j < 0 {
+			return b.String() + url.QueryEscape(s)
+		}
+		j += i + 2
+		b.WriteString(url.QueryEscape(s[:i]) + s[i:j])
+		s = s[j:]
+	}
+}
+
+// Query returns the URL's query params in order, including duplicate keys.
 func Query(raw string) ([]domain.KeyValue, error) {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return nil, err
-	}
-	q, err := url.ParseQuery(u.RawQuery)
-	if err != nil {
-		return nil, err
-	}
+	_, query, _ := splitURL(raw)
 	var rows []domain.KeyValue
-	// Preserve URL order, including duplicate keys.
-	for _, pair := range strings.Split(u.RawQuery, "&") {
+	for _, pair := range strings.Split(query, "&") {
 		if pair == "" {
 			continue
 		}
-		k, _, _ := strings.Cut(pair, "=")
-		key, _ := url.QueryUnescape(k)
-		if len(q[key]) > 0 {
-			rows = append(rows, domain.KeyValue{Key: key, Value: q[key][0]})
-			q[key] = q[key][1:]
-		}
+		k, v, _ := strings.Cut(pair, "=")
+		rows = append(rows, domain.KeyValue{Key: unescape(k), Value: unescape(v)})
 	}
 	return rows, nil
 }
 
 func WithQuery(raw string, rows []domain.KeyValue) (string, error) {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return "", err
-	}
+	base, _, frag := splitURL(raw)
 	var pairs []string
 	for _, row := range rows {
 		if row.Key != "" {
-			pairs = append(pairs, url.QueryEscape(row.Key)+"="+url.QueryEscape(row.Value))
+			pairs = append(pairs, escape(row.Key)+"="+escape(row.Value))
 		}
 	}
-	u.RawQuery = strings.Join(pairs, "&")
-	return u.String(), nil
+	if len(pairs) > 0 {
+		base += "?" + strings.Join(pairs, "&")
+	}
+	return base + frag, nil
 }
 
 // Assert supports Status == N and json.path != nil, one expression per line.
