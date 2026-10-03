@@ -1219,6 +1219,11 @@ func (m *Model) importCurl(raw string) error {
 	return nil
 }
 
+func isCurlCommand(raw string) bool {
+	tokens := strings.Fields(strings.TrimSpace(raw))
+	return len(tokens) > 0 && tokens[0] == "curl"
+}
+
 func (m *Model) openFilePicker() {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -1273,7 +1278,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.Height = vpHeight
 		}
 
-		m.urlInput.Width = halfWidth - 14
+		m.urlInput.Width = halfWidth - lipgloss.Width(styles.Label.Render(" URL ")) - 2
 		m.headerKey.Width = (halfWidth / 2) - 3
 		m.headerVal.Width = (halfWidth / 2) - 3
 		m.headerAuth.Width = halfWidth - 6
@@ -1560,7 +1565,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.openModal(modalEnvironment, "")
 			return m, nil
 		case "ctrl+i":
-			if copied, err := clipboard.ReadAll(); err == nil && strings.HasPrefix(strings.TrimSpace(copied), "curl") {
+			if copied, err := clipboard.ReadAll(); err == nil && isCurlCommand(copied) {
 				if err := m.importCurl(copied); err != nil {
 					m.openModal(modalCurlImport, copied)
 					m.modalError = err.Error()
@@ -1789,6 +1794,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmds = append(cmds, m.spinner.Tick, m.executeRequestCmd())
 				}
 				return m, tea.Batch(cmds...)
+			}
+			if msg.String() == "ctrl+v" {
+				if copied, err := clipboard.ReadAll(); err == nil && isCurlCommand(copied) {
+					if err := m.importCurl(copied); err != nil {
+						m.status = "Import cURL failed: " + err.Error()
+					} else {
+						m.status = "Imported cURL from clipboard"
+					}
+					return m, nil
+				}
 			}
 			var uCmd tea.Cmd
 			m.urlInput, uCmd = m.urlInput.Update(msg)

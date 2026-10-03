@@ -44,6 +44,33 @@ func TestMouseClickTogglesFolderAtRenderedRow(t *testing.T) {
 	}
 }
 
+func TestImportCurlMapsRequestFields(t *testing.T) {
+	m := NewModel(&testCollectionRepo{collection: &domain.Collection{}}, testHTTPClient{})
+	err := m.ImportCurl(`curl -X POST 'https://api.example.test/users?active=true' -H 'Content-Type: application/json' -H 'Authorization: Bearer token' -d '{"name":"Martis"}'`)
+	if err != nil {
+		t.Fatalf("import cURL: %v", err)
+	}
+	if m.methods[m.methodIndex] != "POST" || m.urlInput.Value() != "https://api.example.test/users?active=true" {
+		t.Fatalf("request target was not imported: method=%q url=%q", m.methods[m.methodIndex], m.urlInput.Value())
+	}
+	if len(m.extraHeaders) != 1 || m.extraHeaders[0].Key != "Content-Type" || m.extraHeaders[0].Value != "application/json" {
+		t.Fatalf("headers were not imported: %#v", m.extraHeaders)
+	}
+	if m.headerAuth.Value() != "Bearer token" || m.jsonBody.Value() != `{"name":"Martis"}` || m.tab != TabBodyRaw {
+		t.Fatalf("auth/body were not imported: auth=%q body=%q tab=%v", m.headerAuth.Value(), m.jsonBody.Value(), m.tab)
+	}
+}
+
+func TestURLInputUsesAvailableWidth(t *testing.T) {
+	m := NewModel(&testCollectionRepo{collection: &domain.Collection{}}, testHTTPClient{})
+	initial := m.urlInput.Width
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 150, Height: 40})
+	m = updated.(Model)
+	if m.urlInput.Width <= initial {
+		t.Fatalf("URL input did not expand with the panel: initial=%d updated=%d", initial, m.urlInput.Width)
+	}
+}
+
 func TestMouseClickOpensFormFilePicker(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("macOS uses the native Finder picker")
